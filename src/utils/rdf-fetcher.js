@@ -5,6 +5,12 @@
  *  - Accept-header negotiation (Turtle, JSON-LD, N-Triples)
  *  - Cache API caching to avoid redundant network requests
  *  - Graceful error handling
+ *
+ * Content-Type matching is intentionally lenient: if a server returns a
+ * generic type (text/plain, application/octet-stream, or no Content-Type)
+ * the response is still accepted for the first format we requested.  This
+ * avoids false-negatives from static file servers (e.g. Vite's dev server)
+ * that do not know RDF-specific MIME types.
  */
 
 const CACHE_NAME = "rdf-fetcher-v1";
@@ -53,9 +59,18 @@ export async function fetchRdf(url, options = {}) {
       if (!response.ok) continue;
 
       const contentType = response.headers.get("Content-Type") ?? "";
-      // Accept the response if the server confirms the requested type
       const mimeBase = format.split(";")[0].trim();
-      if (!contentType.includes(mimeBase)) continue;
+
+      // Accept if the server confirms the requested type OR if it returns a
+      // generic type (text/plain, application/octet-stream, empty).  Many
+      // static servers — including Vite's dev server — do not know RDF MIME
+      // types and fall back to text/plain for .ttl, .n3, etc.
+      const isMatch = contentType.includes(mimeBase);
+      const isGeneric =
+        !contentType ||
+        contentType.includes("text/plain") ||
+        contentType.includes("application/octet-stream");
+      if (!isMatch && !isGeneric) continue;
 
       const text = await response.text();
 

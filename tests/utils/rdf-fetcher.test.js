@@ -121,4 +121,42 @@ describe("fetchRdf", () => {
       fetchRdf("https://example.org/wrong", { formats: ["text/turtle"] })
     ).rejects.toThrow("Could not fetch RDF");
   });
+
+  it("accepts a response with text/plain content-type (static file server fallback)", async () => {
+    // Vite's dev server serves .ttl files as text/plain when MIME types are
+    // not configured.  The fetcher should still accept the response.
+    const ttlBody = `<https://example.org/s> <https://example.org/p> "o" .`;
+    global.fetch = makeFetchMock({
+      "https://example.org/data.ttl|text/turtle": {
+        body: ttlBody,
+        contentType: "text/plain",
+        ok: true,
+      },
+    });
+
+    const result = await fetchRdf("https://example.org/data.ttl", {
+      formats: ["text/turtle"],
+    });
+
+    expect(result.text).toBe(ttlBody);
+    expect(result.format).toBe("text/turtle");
+  });
+
+  it("accepts a response with no content-type header", async () => {
+    const ttlBody = `<https://example.org/s> <https://example.org/p> "o" .`;
+    global.fetch = makeFetchMock({
+      "https://example.org/data.ttl|text/turtle": {
+        body: ttlBody,
+        contentType: null,
+        ok: true,
+      },
+    });
+
+    const result = await fetchRdf("https://example.org/data.ttl", {
+      formats: ["text/turtle"],
+    });
+
+    expect(result.text).toBe(ttlBody);
+    expect(result.format).toBe("text/turtle");
+  });
 });
