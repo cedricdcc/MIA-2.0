@@ -366,6 +366,84 @@
     }
     .ai-load-btn:not(:disabled):hover { background: linear-gradient(135deg, #2a5f98, #0a3f70); }
 
+    /* ── Value type badges ───────────────────────────────────────────────── */
+    .type-badge {
+      font-size: .58rem; padding: .1em .42em; border-radius: 8px;
+      font-weight: 700; letter-spacing: .02em; flex-shrink: 0; white-space: nowrap;
+    }
+    .type-badge.uri     { background: #e3f0fb; color: #0d47a1; border: 1px solid #90caf9; }
+    .type-badge.datetime,.type-badge.date { background: #f3e5f5; color: #6a1b9a; border: 1px solid #ce93d8; }
+    .type-badge.integer,.type-badge.decimal { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+    .type-badge.boolean { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .type-badge.string  { background: #f5f5f5; color: #616161; border: 1px solid #ddd; }
+    .type-badge.list    { background: #fff9c4; color: #f57f17; border: 1px solid #ffe082; }
+
+    /* ── Block editor ────────────────────────────────────────────────────── */
+    .block-editor-area { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+    .block-palette {
+      width: 118px; flex-shrink: 0; background: #1e2a38; overflow-y: auto;
+      padding: .3rem .2rem; display: flex; flex-direction: column; gap: .12rem;
+      border-right: 1px solid #2a3e54;
+    }
+    .palette-section {
+      font-size: .57rem; color: #7a9abf; padding: .4rem .35rem .05rem;
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .palette-item {
+      display: flex; align-items: center; gap: .28rem; padding: .28rem .38rem;
+      border-radius: 4px; background: #263849; color: #c9d8ea;
+      cursor: grab; font-size: .68rem; border: 1px solid transparent; user-select: none;
+    }
+    .palette-item:hover { background: #2e4963; border-color: #3a6fa8; }
+    .palette-item:active { cursor: grabbing; }
+    .palette-icon { font-size: .82rem; flex-shrink: 0; width: 1.1rem; text-align: center; }
+    .block-canvas {
+      flex: 1; background: #1a2535; overflow-y: auto; padding: .45rem;
+      display: flex; flex-direction: column; gap: .28rem; min-height: 0;
+    }
+    .block-canvas.drag-over { background: #1c3050; }
+    .canvas-empty {
+      color: #4a6a8a; font-size: .76rem; text-align: center;
+      padding: 2rem .75rem; border: 2px dashed #2a4a6a; border-radius: 6px;
+      font-style: italic; line-height: 1.65;
+    }
+    .canvas-empty b { color: #7aaad0; font-style: normal; }
+    .canvas-block {
+      display: flex; align-items: center; gap: .35rem; background: #263849;
+      border: 1px solid #2e4a68; border-radius: 5px; padding: .28rem .4rem;
+    }
+    .canvas-block.drag-over-top { border-top: 2px solid #3a9af8; }
+    .canvas-block.drag-over-bottom { border-bottom: 2px solid #3a9af8; }
+    .block-drag-handle { cursor: grab; color: #4a6a8a; font-size: .9rem; flex-shrink: 0; user-select: none; }
+    .block-drag-handle:active { cursor: grabbing; }
+    .block-type-icon { font-size: .78rem; flex-shrink: 0; }
+    .block-type-label { font-size: .66rem; color: #8aaac8; font-weight: 600; min-width: 58px; flex-shrink: 0; }
+    .block-predicate-sel {
+      flex: 1; font-size: .68rem; padding: .15rem .28rem;
+      background: #1a2535; color: #c9d8ea; border: 1px solid #3a5a7c;
+      border-radius: 3px; min-width: 0;
+    }
+    .block-delete-btn {
+      flex-shrink: 0; padding: .08rem .32rem; background: none;
+      border: 1px solid #4a2a2a; border-radius: 3px; color: #cc7777; cursor: pointer; font-size: .66rem;
+    }
+    .block-delete-btn:hover { background: #3a1a1a; border-color: #cc4444; }
+    .block-controls {
+      display: flex; gap: .35rem; align-items: center; padding: .35rem .55rem;
+      background: #151f2d; border-top: 1px solid #2a3e54; flex-shrink: 0;
+    }
+    .block-gen-btn {
+      padding: .28rem .75rem; background: #2e7d32; color: #fff; border: none;
+      border-radius: 4px; font-size: .73rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .block-gen-btn:hover { background: #1b5e20; }
+    .block-clear-btn {
+      padding: .28rem .6rem; background: none; border: 1px solid #4a3020;
+      color: #cc9966; border-radius: 4px; font-size: .7rem; cursor: pointer; white-space: nowrap;
+    }
+    .block-clear-btn:hover { background: #2a1a0a; }
+    .block-status { font-size: .68rem; color: #7a9abf; flex: 1; }
+
     /* ── Responsive adjustments ──────────────────────────────────────── */
     @media (max-width: 900px) {
       .workspace {
@@ -447,6 +525,7 @@
     <div class="editor-tabs">
       <button class="editor-tab active" data-tab="html-editor">HTML template</button>
       <button class="editor-tab" data-tab="css-editor">CSS styles</button>
+      <button class="editor-tab" data-tab="block-editor">🧱 Blocks</button>
     </div>
 
     <div class="editor-pane active" id="html-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
@@ -456,6 +535,60 @@
     <div class="editor-pane" id="css-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
       <textarea class="code-editor" id="css-textarea" spellcheck="false"
         placeholder="Write CSS for .rdf-template-host and .triple.* classes…"></textarea>
+    </div>
+
+    <!-- Block (visual) editor -->
+    <div class="editor-pane" id="block-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <div class="block-editor-area">
+        <!-- Palette -->
+        <div class="block-palette" id="block-palette">
+          <div class="palette-section">Text</div>
+          <div class="palette-item" draggable="true" data-block-type="heading" title="H1 heading — for title/name predicates">
+            <span class="palette-icon">H1</span><span>Heading</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="subheading" title="H3 subheading">
+            <span class="palette-icon">H3</span><span>Subheading</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="description" title="Paragraph — for description/abstract">
+            <span class="palette-icon">¶</span><span>Paragraph</span>
+          </div>
+          <div class="palette-section">Lists</div>
+          <div class="palette-item" draggable="true" data-block-type="tag-cloud" title="Tag chips — great for keywords and subjects">
+            <span class="palette-icon">🏷</span><span>Tag Cloud</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="link-cards" title="Link cards in a flex grid — skos:member, hasPart">
+            <span class="palette-icon">🃏</span><span>Link Cards</span>
+          </div>
+          <div class="palette-section">Values</div>
+          <div class="palette-item" draggable="true" data-block-type="date-field" title="Date/datetime with &lt;time&gt; element">
+            <span class="palette-icon">📅</span><span>Date</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="number-field" title="Integer or decimal number">
+            <span class="palette-icon">🔢</span><span>Number</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="link-field" title="Hyperlink for URI objects">
+            <span class="palette-icon">🔗</span><span>Link</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="kv-row" title="Key–value metadata row">
+            <span class="palette-icon">⊟</span><span>Key–Value</span>
+          </div>
+          <div class="palette-section">Layout</div>
+          <div class="palette-item" draggable="true" data-block-type="divider" title="Horizontal divider rule">
+            <span class="palette-icon">─</span><span>Divider</span>
+          </div>
+        </div>
+        <!-- Canvas -->
+        <div class="block-canvas" id="block-canvas">
+          <div class="canvas-empty" id="canvas-empty">
+            ← Drag blocks from the palette, or click a property's <b>Block</b> button to add it here
+          </div>
+        </div>
+      </div>
+      <div class="block-controls">
+        <button class="block-gen-btn" id="block-gen-btn">→ Generate Code</button>
+        <button class="block-clear-btn" id="block-clear-btn">🗑 Clear</button>
+        <span class="block-status" id="block-status">Add blocks to start building your template.</span>
+      </div>
     </div>
 
     <!-- Token cheat-sheet row -->
@@ -468,6 +601,9 @@
       <span class="token-chip" data-token="{object}">{object}</span>
       <span class="token-chip" data-token="{object-short}">{object-short}</span>
       <span class="token-chip" data-token="{object-is-uri}">{object-is-uri}</span>
+      <span class="token-chip" data-token="{object-type}" title="Value type: uri | datetime | date | integer | decimal | boolean | string">{object-type}</span>
+      <span class="token-chip" data-token="{object-datatype}" title="Full XSD datatype URI (empty for plain literals)">{object-datatype}</span>
+      <span class="token-chip" data-token="{object-lang}" title="Language tag e.g. 'en' (empty if none)">{object-lang}</span>
     </div>
 
     <div class="editor-toolbar">
@@ -505,8 +641,10 @@ import { isUri, shortenUri } from '/src/utils/rdf-utils.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────────────────────
-let _triples = [];           // all parsed triples
+let _triples = [];             // all parsed triples
 let _previewMode = 'template'; // current preview mode
+/** predicate URI → { count, examples[], type } — updated by populateProps */
+let _predicateMap = new Map();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM refs
@@ -647,6 +785,111 @@ function toCssClass(uri) {
   return cls || 'rdf-prop';
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Value type detection (heuristics + XSD datatype URI when available)
+// Returns: "uri" | "datetime" | "date" | "integer" | "decimal" | "boolean" | "string"
+// ─────────────────────────────────────────────────────────────────────────────
+function detectValueType(value, datatype) {
+  if (datatype) {
+    const dt = datatype.toLowerCase();
+    if (dt.includes('datetime') || dt.includes('gyear')) return 'datetime';
+    if (dt.includes('date') && !dt.includes('datetime')) return 'date';
+    if (dt.includes('integer') || dt.includes('long') || dt.includes('short') || dt.includes('byte') ||
+        (dt.endsWith('int') && !dt.includes('string'))) return 'integer';
+    if (dt.includes('decimal') || dt.includes('float') || dt.includes('double')) return 'decimal';
+    if (dt.includes('boolean')) return 'boolean';
+    if (dt.includes('anyuri')) return 'uri';
+    return 'string';
+  }
+  if (isUri(value)) return 'uri';
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return 'datetime';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'date';
+  if (/^-?\d+$/.test(value.trim())) return 'integer';
+  if (/^-?\d+\.\d+$/.test(value.trim())) return 'decimal';
+  if (/^(true|false)$/i.test(value.trim())) return 'boolean';
+  return 'string';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block types: definition and HTML/CSS code generators
+// ─────────────────────────────────────────────────────────────────────────────
+const TYPE_ICONS = {
+  uri: '🔗', datetime: '📅', date: '📅',
+  integer: '🔢', decimal: '🔢', boolean: '✅', string: '💬',
+};
+
+const BLOCK_TYPES = {
+  heading:      { label: 'Heading',     icon: 'H1', suggestsFor: ['string'] },
+  subheading:   { label: 'Subheading',  icon: 'H3', suggestsFor: ['string'] },
+  description:  { label: 'Paragraph',  icon: '¶',  suggestsFor: ['string'] },
+  'tag-cloud':  { label: 'Tag Cloud',   icon: '🏷', suggestsFor: ['string', 'uri'], isList: true },
+  'link-cards': { label: 'Link Cards',  icon: '🃏', suggestsFor: ['uri'],           isList: true },
+  'date-field': { label: 'Date',        icon: '📅', suggestsFor: ['datetime', 'date'] },
+  'number-field':{ label: 'Number',     icon: '🔢', suggestsFor: ['integer', 'decimal'] },
+  'link-field': { label: 'Link',        icon: '🔗', suggestsFor: ['uri'] },
+  'kv-row':     { label: 'Key–Value',   icon: '⊟', suggestsFor: ['string', 'uri', 'datetime', 'date', 'integer', 'decimal', 'boolean'] },
+  divider:      { label: 'Divider',     icon: '─',  suggestsFor: [] },
+};
+
+function blockToHtmlCss(blockType, predicateUri) {
+  const cssClass = predicateUri ? toCssClass(predicateUri) : 'rdf-prop';
+  const short    = predicateUri ? escHtml(shortenUri(predicateUri)) : '{predicate-short}';
+  switch (blockType) {
+    case 'heading':
+      return {
+        html: `<h2 class="triple ${cssClass}">{object}</h2>`,
+        css:  `.triple.${cssClass} { display: block; width: 100%; font-size: 1.6rem; font-weight: 700; color: #083d6b; margin: 0 0 .5rem; }`,
+      };
+    case 'subheading':
+      return {
+        html: `<h3 class="triple ${cssClass}">{object}</h3>`,
+        css:  `.triple.${cssClass} { display: block; width: 100%; font-size: 1.1rem; font-weight: 600; color: #1a4f80; margin: 0 0 .4rem; }`,
+      };
+    case 'description':
+      return {
+        html: `<p class="triple ${cssClass}">{object}</p>`,
+        css:  `.triple.${cssClass} { display: block; width: 100%; color: #333; line-height: 1.65; margin: 0 0 1rem; font-size: .9rem; }`,
+      };
+    case 'tag-cloud':
+      return {
+        html: `<span class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <span class="tag-text">{object}</span>\n  <a class="tag-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</span>`,
+        css:  `.triple.${cssClass} { display: inline-flex; align-items: center; background: #e3f0fb; border: 1px solid #90caf9; border-radius: 12px; padding: .22em .65em; font-size: .82rem; color: #0d47a1; }\n.triple.${cssClass}[data-is-uri="false"] .tag-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .tag-text { display: none; }\n.triple.${cssClass} .tag-link { color: inherit; text-decoration: none; }\n.triple.${cssClass} .tag-link:hover { text-decoration: underline; }`,
+      };
+    case 'link-cards':
+      return {
+        html: `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <div class="card-label">${short}</div>\n  <div class="card-body">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </div>\n</div>`,
+        css:  `.triple.${cssClass} { display: flex; flex-direction: column; gap: .22rem; min-width: 150px; flex: 1 1 190px; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; }\n.triple.${cssClass} .card-label { font-size: .68rem; font-weight: 700; color: #3a6fa8; text-transform: uppercase; letter-spacing: .05em; }\n.triple.${cssClass} .value-link { color: #083d6b; font-weight: 600; text-decoration: none; }\n.triple.${cssClass} .value-link:hover { text-decoration: underline; }\n.triple.${cssClass}[data-is-uri="false"] .value-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .value-text { display: none; }`,
+      };
+    case 'date-field':
+      return {
+        html: `<div class="triple ${cssClass} date-block">\n  <span class="field-label">${short}</span>\n  <time class="field-value" datetime="{object}" data-type="{object-type}">{object}</time>\n</div>`,
+        css:  `.triple.${cssClass} { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.triple.${cssClass} .field-label { font-weight: 600; color: #6a1b9a; font-size: .75rem; min-width: 80px; flex-shrink: 0; }\n.triple.${cssClass} .field-value { color: #4a148c; font-variant-numeric: tabular-nums; }`,
+      };
+    case 'number-field':
+      return {
+        html: `<div class="triple ${cssClass} number-block">\n  <span class="field-label">${short}</span>\n  <span class="field-value" data-type="{object-type}">{object}</span>\n</div>`,
+        css:  `.triple.${cssClass} { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.triple.${cssClass} .field-label { font-weight: 600; color: #e65100; font-size: .75rem; min-width: 80px; flex-shrink: 0; }\n.triple.${cssClass} .field-value { color: #bf360c; font-weight: 700; font-variant-numeric: tabular-nums; }`,
+      };
+    case 'link-field':
+      return {
+        html: `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <span class="field-label">${short}</span>\n  <span class="value-text">{object}</span>\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`,
+        css:  `.triple.${cssClass} { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.triple.${cssClass} .field-label { font-weight: 600; color: #1a4f80; font-size: .75rem; min-width: 80px; flex-shrink: 0; }\n.triple.${cssClass} .value-link { color: #1a6fa8; text-decoration: none; }\n.triple.${cssClass} .value-link:hover { text-decoration: underline; }\n.triple.${cssClass}[data-is-uri="false"] .value-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .value-text { display: none; }`,
+      };
+    case 'kv-row':
+      return {
+        html: `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}" data-type="{object-type}">\n  <dt class="kv-label">{predicate-short}</dt>\n  <dd class="kv-value">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </dd>\n</div>`,
+        css:  `.triple.${cssClass} { display: flex; align-items: baseline; gap: .5rem; font-size: .85rem; padding: .15rem 0; }\n.triple.${cssClass} .kv-label { font-weight: 600; color: #555; font-size: .78rem; min-width: 100px; flex-shrink: 0; }\n.triple.${cssClass} .kv-value { color: #222; margin: 0; word-break: break-word; }\n.triple.${cssClass} .value-link { color: #1a6fa8; text-decoration: none; }\n.triple.${cssClass} .value-link:hover { text-decoration: underline; }\n.triple.${cssClass}[data-is-uri="false"] .value-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .value-text { display: none; }`,
+      };
+    case 'divider':
+      return {
+        html: '',
+        css:  `.rdf-template-host { border-top: 1px solid #e0e7ef; margin-top: .5rem; padding-top: .5rem; }`,
+      };
+    default:
+      return { html: '', css: '' };
+  }
+}
+
 function fillPlaceholders(html, triple) {
   const map = {
     '{subject}':         triple.subject   ?? '',
@@ -656,6 +899,9 @@ function fillPlaceholders(html, triple) {
     '{object}':          triple.object    ?? '',
     '{object-short}':    shortenUri(triple.object ?? ''),
     '{object-is-uri}':   isUri(triple.object ?? '') ? 'true' : 'false',
+    '{object-type}':     detectValueType(triple.object ?? '', triple.objectDatatype ?? null),
+    '{object-datatype}': triple.objectDatatype ?? '',
+    '{object-lang}':     triple.objectLang ?? '',
   };
   let out = html;
   for (const [k, v] of Object.entries(map)) {
@@ -738,21 +984,47 @@ function updatePreview() {
 // Populate properties panel
 // ─────────────────────────────────────────────────────────────────────────────
 function populateProps(triples) {
-  // Build a map: predicate URI → { count, examples }
-  const map = new Map();
+  // Build a map: predicate URI → { count, examples, type }
+  _predicateMap = new Map();
   for (const t of triples) {
     const p = t.predicate;
-    if (!map.has(p)) map.set(p, { count: 0, examples: [] });
-    const entry = map.get(p);
+    if (!_predicateMap.has(p)) _predicateMap.set(p, { count: 0, examples: [], datatypes: [] });
+    const entry = _predicateMap.get(p);
     entry.count++;
-    if (entry.examples.length < 2) entry.examples.push(t.object);
+    if (entry.examples.length < 3) entry.examples.push(t.object);
+    if (t.objectDatatype && entry.datatypes.length < 2) entry.datatypes.push(t.objectDatatype);
+  }
+  // Detect value type per predicate
+  for (const entry of _predicateMap.values()) {
+    const datatype = entry.datatypes[0] ?? null;
+    entry.type = detectValueType(entry.examples[0] ?? '', datatype);
   }
 
   propsList.innerHTML = '';
-  for (const [uri, { count, examples }] of map) {
-    const short = shortenUri(uri);
+  for (const [uri, { count, examples, type }] of _predicateMap) {
+    const short    = shortenUri(uri);
     const cssClass = toCssClass(uri);
-    const example = examples[0] ?? '';
+    const example  = examples[0] ?? '';
+    const isList   = count > 1;
+    const typeIcon = TYPE_ICONS[type] ?? '?';
+
+    // Build type-specific HTML snippet based on value type
+    let typeSnippet;
+    if (type === 'datetime' || type === 'date') {
+      typeSnippet = `<div class="triple ${cssClass}" data-type="{object-type}">\n  <span class="label">${escHtml(short)}</span>\n  <time class="value-date" datetime="{object}">{object}</time>\n</div>`;
+    } else if (type === 'integer' || type === 'decimal') {
+      typeSnippet = `<div class="triple ${cssClass}" data-type="{object-type}">\n  <span class="label">${escHtml(short)}</span>\n  <span class="value-number">{object}</span>\n</div>`;
+    } else if (type === 'boolean') {
+      typeSnippet = `<span class="triple ${cssClass}" data-value="{object}">{object}</span>`;
+    } else if (type === 'uri' && isList) {
+      typeSnippet = `<div class="triple ${cssClass}" data-is-uri="true">\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`;
+    } else if (type === 'uri') {
+      typeSnippet = `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <span class="label">${escHtml(short)}</span>\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`;
+    } else if (isList) {
+      typeSnippet = `<span class="triple ${cssClass}">{object}</span>`;
+    } else {
+      typeSnippet = `<div class="triple ${cssClass}" data-predicate="{predicate}" data-is-uri="{object-is-uri}">\n  <span class="label">${escHtml(short)}</span>\n  <span class="value-text">{object}</span>\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`;
+    }
 
     const li = document.createElement('li');
     li.innerHTML = `
@@ -762,46 +1034,231 @@ function populateProps(triples) {
         <span class="prop-example" title="${escHtml(example)}">${escHtml(example.slice(0,60))}${example.length > 60 ? '…' : ''}</span>
       </div>
       <span class="prop-count">${count}</span>
+      <span class="type-badge ${type}" title="Value type: ${type}">${typeIcon} ${type}</span>
+      ${isList ? `<span class="type-badge list" title="This predicate appears ${count} times (list/multi-valued)">LIST</span>` : ''}
       <div class="insert-btns">
         <button class="insert-btn" data-insert="html"
           data-class="${escHtml(cssClass)}"
           data-short="${escHtml(short)}"
-          title="Insert a div block into the HTML template">HTML</button>
+          data-snippet="${escHtml(typeSnippet)}"
+          title="Insert type-appropriate HTML snippet">HTML</button>
         <button class="insert-btn" data-insert="css"
           data-class="${escHtml(cssClass)}"
-          title="Insert a CSS rule into the styles">CSS</button>
+          title="Insert a CSS rule">CSS</button>
+        <button class="insert-btn" data-insert="block"
+          data-uri="${escHtml(uri)}"
+          data-type="${escHtml(type)}"
+          data-count="${count}"
+          data-short="${escHtml(short)}"
+          title="Add to visual block editor">Block</button>
       </div>`;
     propsList.appendChild(li);
 
     li.querySelector('[data-insert="html"]').addEventListener('click', (e) => {
-      const cls  = e.currentTarget.dataset.class;
-      const srt  = e.currentTarget.dataset.short;
-      const snippet = `<div class="triple ${cls}" data-predicate="{predicate}" data-is-uri="{object-is-uri}">
-  <span class="label">${srt}</span>
-  <span class="value-text">{object}</span>
-  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>
-</div>`;
+      const snippet = e.currentTarget.dataset.snippet;
       insertAtCursor(htmlTA, '\n' + snippet);
-      // Switch to HTML tab
       document.querySelector('[data-tab="html-editor"]').click();
     });
 
     li.querySelector('[data-insert="css"]').addEventListener('click', (e) => {
       const cls = e.currentTarget.dataset.class;
-      const snippet = `\n/* ── .triple.${cls} ── */\n.triple.${cls} {\n  display: block;\n  /* your styles here */\n}\n`;
+      const snippet = `\n/* ── .triple.${cls} (${type}${isList ? ', list' : ''}) ── */\n.triple.${cls} {\n  display: block;\n  /* your styles here */\n}\n`;
       insertAtCursor(cssTA, snippet);
-      // Switch to CSS tab
       document.querySelector('[data-tab="css-editor"]').click();
+    });
+
+    li.querySelector('[data-insert="block"]').addEventListener('click', (e) => {
+      const uriVal  = e.currentTarget.dataset.uri;
+      const valType = e.currentTarget.dataset.type;
+      const cnt     = parseInt(e.currentTarget.dataset.count, 10);
+      const srt     = e.currentTarget.dataset.short.toLowerCase();
+      // Auto-suggest the most appropriate block type
+      let suggested = 'kv-row';
+      if (valType === 'datetime' || valType === 'date') suggested = 'date-field';
+      else if (valType === 'integer' || valType === 'decimal') suggested = 'number-field';
+      else if (valType === 'uri' && cnt > 1) suggested = 'link-cards';
+      else if (valType === 'uri') suggested = 'link-field';
+      else if (cnt > 1) suggested = 'tag-cloud';
+      if (srt === 'title' || srt === 'name' || srt === 'label') suggested = 'heading';
+      if (srt === 'description' || srt === 'abstract' || srt === 'comment') suggested = 'description';
+      addBlockToCanvas(suggested, uriVal);
+      document.querySelector('[data-tab="block-editor"]').click();
     });
   }
 
   propsList.style.display = 'block';
   propsEmpty.style.display = 'none';
-  propsCount.textContent = `${map.size} predicates · ${triples.length} triples`;
+  propsCount.textContent = `${_predicateMap.size} predicates · ${triples.length} triples`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Fetch RDF
+// Block editor: canvas management and drag-and-drop
+// ─────────────────────────────────────────────────────────────────────────────
+const blockCanvas   = document.getElementById('block-canvas');
+let _draggedBlockType   = null; // type dragged from palette
+let _draggedCanvasBlock = null; // block being reordered in canvas
+
+function updateCanvasStatus() {
+  const count = blockCanvas.querySelectorAll('.canvas-block').length;
+  const blockStatus = document.getElementById('block-status');
+  blockStatus.textContent = count
+    ? `${count} block${count !== 1 ? 's' : ''} — click → Generate Code to apply.`
+    : 'Add blocks to start building your template.';
+}
+
+function addBlockToCanvas(blockType, predicateUri = '') {
+  const def = BLOCK_TYPES[blockType];
+  if (!def) return;
+  // Remove empty-state placeholder
+  const empty = document.getElementById('canvas-empty');
+  if (empty) empty.remove();
+
+  const block = document.createElement('div');
+  block.className = 'canvas-block';
+  block.dataset.blockType = blockType;
+
+  const opts = [..._predicateMap.keys()].map(uri => {
+    const s = escHtml(shortenUri(uri));
+    const u = escHtml(uri);
+    const sel = (predicateUri && uri === predicateUri) ? ' selected' : '';
+    return `<option value="${u}"${sel}>${s}</option>`;
+  }).join('');
+
+  block.innerHTML = `
+    <span class="block-drag-handle" title="Drag to reorder">⠿</span>
+    <span class="block-type-icon">${def.icon}</span>
+    <span class="block-type-label">${escHtml(def.label)}</span>
+    <select class="block-predicate-sel" title="Predicate this block applies to">
+      <option value="">(any predicate)</option>
+      ${opts}
+    </select>
+    <button class="block-delete-btn" title="Remove block">✕</button>`;
+
+  block.querySelector('.block-delete-btn').addEventListener('click', () => {
+    block.remove();
+    if (!blockCanvas.querySelector('.canvas-block')) {
+      blockCanvas.innerHTML = `<div class="canvas-empty" id="canvas-empty">← Drag blocks from the palette, or click a property's <b>Block</b> button to add it here</div>`;
+    }
+    updateCanvasStatus();
+  });
+
+  setupCanvasBlockDrag(block);
+  blockCanvas.appendChild(block);
+  updateCanvasStatus();
+}
+
+function setupCanvasBlockDrag(blockEl) {
+  const handle = blockEl.querySelector('.block-drag-handle');
+  // Make only the handle draggable — prevents accidental drags on selects/buttons
+  handle.setAttribute('draggable', 'true');
+
+  handle.addEventListener('dragstart', e => {
+    _draggedCanvasBlock = blockEl;
+    _draggedBlockType   = null;
+    e.dataTransfer.effectAllowed = 'move';
+    e.stopPropagation(); // don't let palette dragstart intercept
+    setTimeout(() => { blockEl.style.opacity = '.4'; }, 0);
+  });
+  handle.addEventListener('dragend', () => {
+    blockEl.style.opacity = '';
+    _draggedCanvasBlock = null;
+    blockCanvas.querySelectorAll('.canvas-block').forEach(b => {
+      b.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+  });
+  blockEl.addEventListener('dragover', e => {
+    if (!_draggedCanvasBlock || _draggedCanvasBlock === blockEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = blockEl.getBoundingClientRect();
+    blockCanvas.querySelectorAll('.canvas-block').forEach(b => b.classList.remove('drag-over-top','drag-over-bottom'));
+    blockEl.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
+  });
+  blockEl.addEventListener('drop', e => {
+    if (!_draggedCanvasBlock || _draggedCanvasBlock === blockEl) return;
+    e.preventDefault(); e.stopPropagation();
+    const rect = blockEl.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) {
+      blockCanvas.insertBefore(_draggedCanvasBlock, blockEl);
+    } else {
+      blockCanvas.insertBefore(_draggedCanvasBlock, blockEl.nextSibling);
+    }
+    blockEl.classList.remove('drag-over-top','drag-over-bottom');
+  });
+}
+
+// Palette → canvas drag
+document.querySelectorAll('.palette-item').forEach(item => {
+  item.addEventListener('dragstart', e => {
+    _draggedBlockType   = item.dataset.blockType;
+    _draggedCanvasBlock = null;
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData('text/plain', item.dataset.blockType);
+  });
+  item.addEventListener('dragend', () => { _draggedBlockType = null; });
+});
+
+blockCanvas.addEventListener('dragover', e => {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = _draggedCanvasBlock ? 'move' : 'copy';
+  blockCanvas.classList.add('drag-over');
+});
+blockCanvas.addEventListener('dragleave', () => blockCanvas.classList.remove('drag-over'));
+blockCanvas.addEventListener('drop', e => {
+  e.preventDefault();
+  blockCanvas.classList.remove('drag-over');
+  if (_draggedBlockType && !_draggedCanvasBlock) {
+    addBlockToCanvas(_draggedBlockType);
+    _draggedBlockType = null;
+  }
+});
+
+// Generate Code button
+document.getElementById('block-gen-btn').addEventListener('click', () => {
+  const blocks = [...blockCanvas.querySelectorAll('.canvas-block')];
+  if (!blocks.length) {
+    document.getElementById('block-status').textContent = '⚠ No blocks in canvas — add blocks first.';
+    return;
+  }
+  const htmlParts = [];
+  const cssParts  = [
+    `/* ── Generated by RDF Template Playground block editor ── */`,
+    `.rdf-template-host {`,
+    `  display: flex;`,
+    `  flex-wrap: wrap;`,
+    `  gap: .5rem;`,
+    `  padding: 1.25rem;`,
+    `  background: #fff;`,
+    `  border-radius: 8px;`,
+    `  box-shadow: 0 2px 10px rgba(0,0,0,.08);`,
+    `  font-family: 'Segoe UI', system-ui, sans-serif;`,
+    `}`,
+    ``,
+    `/* Hide all triples by default — show only those with explicit styles below */`,
+    `.triple { display: none; }`,
+    ``,
+  ];
+
+  for (const block of blocks) {
+    const blockType    = block.dataset.blockType;
+    const predicateUri = block.querySelector('.block-predicate-sel')?.value ?? '';
+    const { html, css } = blockToHtmlCss(blockType, predicateUri);
+    if (html) htmlParts.push(html);
+    if (css)  { cssParts.push(`/* ── ${BLOCK_TYPES[blockType]?.label ?? blockType} ── */`); cssParts.push(css); cssParts.push(''); }
+  }
+
+  htmlTA.value = htmlParts.join('\n');
+  cssTA.value  = cssParts.join('\n');
+  document.querySelector('[data-tab="html-editor"]').click();
+  updatePreview();
+  document.getElementById('block-status').textContent = `✅ Code generated from ${blocks.length} block${blocks.length !== 1 ? 's' : ''}.`;
+});
+
+// Clear canvas button
+document.getElementById('block-clear-btn').addEventListener('click', () => {
+  blockCanvas.innerHTML = `<div class="canvas-empty" id="canvas-empty">← Drag blocks from the palette, or click a property's <b>Block</b> button to add it here</div>`;
+  updateCanvasStatus();
+});
 // ─────────────────────────────────────────────────────────────────────────────
 async function doFetch() {
   const url = urlInput.value.trim();
@@ -827,9 +1284,11 @@ async function doFetch() {
     const quads = await parseRdf(text, format, url);
 
     _triples = quads.map(q => ({
-      subject:   q.subject?.value   ?? String(q.subject),
-      predicate: q.predicate?.value ?? String(q.predicate),
-      object:    q.object?.value    ?? String(q.object),
+      subject:       q.subject?.value   ?? String(q.subject),
+      predicate:     q.predicate?.value ?? String(q.predicate),
+      object:        q.object?.value    ?? String(q.object),
+      objectDatatype: q.object?.datatype?.value ?? null,
+      objectLang:     q.object?.language ?? null,
     }));
 
     setStatus(`✅ Loaded ${_triples.length} triples from <em>${escHtml(url)}</em>`);
@@ -1052,22 +1511,15 @@ async function doAiSuggest() {
 
   aiSuggestBtn.disabled = true;
 
-  // Build predicate summary for the prompt (shared across all model attempts)
-  const predicateMap = new Map();
-  for (const t of _triples) {
-    if (!predicateMap.has(t.predicate)) predicateMap.set(t.predicate, []);
-    const examples = predicateMap.get(t.predicate);
-    if (examples.length < 3) examples.push(t.object);
-  }
-
-  const predicateLines = [...predicateMap.entries()].map(([uri, examples]) => {
+  // Build predicate summary using the already-computed _predicateMap (includes types)
+  const predicateLines = [..._predicateMap.entries()].map(([uri, { count, examples, type }]) => {
     const short    = shortenUri(uri);
     const cssClass = toCssClass(uri);
-    const count    = _triples.filter(t => t.predicate === uri).length;
+    const isList   = count > 1 ? '  [LIST]' : '';
     const exStr = examples.slice(0, 2).map(e =>
       isUri(e) ? `<${e}>` : `"${e.slice(0, 80)}${e.length > 80 ? '…' : ''}"`
     ).join(', ');
-    return `  - class="${cssClass}"  short="${short}"  ${count}×  e.g. ${exStr}`;
+    return `  - class="${cssClass}"  short="${short}"  type=${type}  ${count}×${isList}  e.g. ${exStr}`;
   }).join('\n');
 
   const prompt = buildAiPrompt(predicateLines, urlInput.value.trim());
@@ -1174,56 +1626,87 @@ Generate a display template for the <rdf-display> web component.
 The <rdf-display> component renders RDF triples. For EACH triple it clones a <div> template
 and replaces these placeholder tokens in text nodes AND attribute values:
 
-| Token              | Replaced with                                             |
-|--------------------|-----------------------------------------------------------|
-| {subject}          | Full subject URI                                          |
-| {predicate}        | Full predicate URI                                        |
-| {predicate-short}  | Short label  e.g. "title", "description"                  |
-| {predicate-class}  | CSS-safe class  e.g. "title", "description"               |
-| {object}           | Full object value (URI or literal string)                 |
-| {object-short}     | Short label for URI objects                               |
-| {object-is-uri}    | "true" if object is a URI, "false" if it is a literal     |
+| Token              | Replaced with                                                      |
+|--------------------|--------------------------------------------------------------------|
+| {subject}          | Full subject URI                                                   |
+| {predicate}        | Full predicate URI                                                 |
+| {predicate-short}  | Short label  e.g. "title", "description"                           |
+| {predicate-class}  | CSS-safe class  e.g. "title", "description"                        |
+| {object}           | Full object value (URI or literal string)                          |
+| {object-short}     | Short label for URI objects                                        |
+| {object-is-uri}    | "true" if object is a URI, "false" if it is a literal              |
+| {object-type}      | Inferred value type: uri | datetime | date | integer | decimal | boolean | string |
+| {object-datatype}  | Full XSD datatype URI (empty for plain literals)                   |
+| {object-lang}      | Language tag e.g. "en" (empty if none)                            |
 
-IMPORTANT RULES:
-1. The template div is cloned ONCE PER TRIPLE. If there are 5 skos:member triples you get
-   5 sibling divs each with class "member". CSS flex/grid layout handles visual grouping.
+## Rules for value types
+
+Use {object-type} and {object-is-uri} to choose the right HTML element and display:
+
+- **uri** → render as a hyperlink: <a href="{object}">{object-short}</a>
+- **datetime / date** → use <time datetime="{object}">{object}</time>
+- **integer / decimal** → display as a number, optionally in a <span class="value-number">
+- **boolean** → show a tick/cross icon based on value: <span data-value="{object}">
+- **string** → plain text <span> or <p> as appropriate
+- Use data-is-uri="{object-is-uri}" on the outer div and CSS attribute selectors:
+    .triple[data-is-uri="true"]  .value-text { display: none; }
+    .triple[data-is-uri="false"] .value-link { display: none; }
+
+## Rules for lists (multi-valued predicates)
+
+Predicates marked [LIST] appear multiple times. Each occurrence creates a SEPARATE sibling
+div with the SAME CSS class. Use CSS flex/grid on .rdf-template-host to group them visually:
+- String lists → use display: inline-flex with chip/tag styling
+- URI lists → use flex: 1 1 Npx cards inside a flex-wrap container
+- Date/number lists → stack vertically
+
+## Rendering rules
+
+1. The template fragment is cloned ONCE PER TRIPLE — one div per (predicate, object) pair.
 2. The CSS runs inside a Shadow DOM. The host container has class "rdf-template-host".
-3. Use data-is-uri="{object-is-uri}" on the triple div and then use attribute selectors
-   to show either a link or a text span:
-     .triple[data-is-uri="true"]  .text-value { display: none; }
-     .triple[data-is-uri="false"] .link-value { display: none; }
-4. Show title and description prominently. Group subjects/keywords as chips/tags.
-   Render members as cards. De-emphasise or hide rdf:type and structural predicates.
-5. Use modern CSS (flexbox/grid). Make it look professional and polished.
+3. Show title and description prominently at full width.
+4. Group subjects/keywords (type=string, LIST) as chip tags.
+5. Render member URIs (type=uri, LIST) as link cards in a flex grid.
+6. De-emphasise or hide rdf:type and purely structural predicates.
+7. Use modern CSS (flexbox/grid). Make it look professional and polished.
 
 ## Resource being visualised
 URL: ${resourceUrl || '(unknown)'}
 
 ## Predicates found in the actual fetched data
+(columns: CSS class | short name | inferred type | occurrence count | examples)
 
 ${predicateLines}
 
 ## Your task
 
-Generate a complete, visually attractive template for this specific data.
+Generate a complete, visually attractive template for this specific data, using the correct
+element and display pattern for EACH predicate's inferred type (see table above).
 
 ## Required output format — return EXACTLY these two fenced code blocks and NOTHING else
 
 \`\`\`html
 <div class="triple {predicate-class}"
      data-predicate="{predicate}"
-     data-is-uri="{object-is-uri}">
-  <!-- your markup using the tokens above -->
+     data-is-uri="{object-is-uri}"
+     data-type="{object-type}">
+  <!-- your markup using the tokens above — one div covers all predicates via CSS -->
 </div>
 \`\`\`
 
 \`\`\`css
 /* Styles for .rdf-template-host and each .triple.{predicate-class} */
-.rdf-template-host { /* container layout */ }
-.triple { display: none; /* hide by default, show only explicitly styled ones */ }
-/* Show and style each predicate class: */
-.triple.title { /* prominent heading */ }
-/* … */
+.rdf-template-host { /* container layout — flex-wrap recommended */ }
+.triple { display: none; /* hide all by default; show only explicitly styled classes */ }
+/* Style each predicate class according to its type and role: */
+.triple.title { /* full-width heading */ }
+.triple.description { /* full-width paragraph */ }
+/* list predicates: */
+.triple.member { /* flex card — appear side-by-side due to flex-wrap */ }
+.triple.subject { /* inline chip */ }
+/* value predicates: */
+.triple.created { /* date/time display */ }
+/* … add one rule per predicate class … */
 \`\`\``;
 }
 
@@ -1249,7 +1732,7 @@ function extractAiCodeBlocks(text) {
     }
     // Should contain at least one template token
     const tokens = ['{subject}','{predicate}','{predicate-short}','{predicate-class}',
-                    '{object}','{object-short}','{object-is-uri}'];
+                    '{object}','{object-short}','{object-is-uri}','{object-type}','{object-datatype}','{object-lang}'];
     if (!tokens.some(tok => html.includes(tok))) {
       warnings.push('Generated HTML contains no template tokens — the output may not render dynamically');
     }

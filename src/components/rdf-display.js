@@ -10,7 +10,10 @@
  *   template-id      – ID of a <template> element in the document; when set, each
  *                      triple is rendered by cloning that template and filling in
  *                      {subject}, {predicate}, {predicate-short}, {predicate-class},
- *                      {object}, {object-short}, {object-is-uri} placeholders.
+ *                      {object}, {object-short}, {object-is-uri},
+ *                      {object-type} (uri|datetime|date|integer|decimal|boolean|string),
+ *                      {object-datatype} (full XSD datatype URI or empty),
+ *                      {object-lang} (language tag e.g. "en" or empty) placeholders.
  *   template-styles  – ID of a <style> element in the document; its CSS is injected
  *                      into the shadow root so it can style the cloned template content.
  *
@@ -327,6 +330,9 @@ export class RdfDisplay extends LitElement {
         "{object}": triple.object ?? "",
         "{object-short}": shortenUri(triple.object ?? ""),
         "{object-is-uri}": isUri(triple.object ?? "") ? "true" : "false",
+        "{object-type}": _detectObjectType(triple.object ?? "", triple.objectDatatype ?? null),
+        "{object-datatype}": triple.objectDatatype ?? "",
+        "{object-lang}": triple.objectLang ?? "",
       });
       host.appendChild(clone);
     }
@@ -353,6 +359,43 @@ export class RdfDisplay extends LitElement {
     style.textContent = sourceEl.textContent;
     this.shadowRoot.prepend(style);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: infer object value type from XSD datatype or heuristics
+// Returns one of: "uri" | "datetime" | "date" | "integer" | "decimal" | "boolean" | "string"
+// ---------------------------------------------------------------------------
+
+function _detectObjectType(value, datatype) {
+  if (datatype) {
+    const dt = datatype.toLowerCase();
+    if (dt.includes("datetime") || dt.includes("gyear")) return "datetime";
+    if (dt.includes("date") && !dt.includes("datetime")) return "date";
+    if (
+      dt.includes("integer") ||
+      dt.includes("long") ||
+      dt.includes("short") ||
+      dt.includes("byte") ||
+      (dt.endsWith("int") && !dt.includes("string"))
+    )
+      return "integer";
+    if (
+      dt.includes("decimal") ||
+      dt.includes("float") ||
+      dt.includes("double")
+    )
+      return "decimal";
+    if (dt.includes("boolean")) return "boolean";
+    if (dt.includes("anyuri")) return "uri";
+    return "string";
+  }
+  if (isUri(value)) return "uri";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return "datetime";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return "date";
+  if (/^-?\d+$/.test(value.trim())) return "integer";
+  if (/^-?\d+\.\d+$/.test(value.trim())) return "decimal";
+  if (/^(true|false)$/i.test(value.trim())) return "boolean";
+  return "string";
 }
 
 // ---------------------------------------------------------------------------

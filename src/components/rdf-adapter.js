@@ -16,7 +16,7 @@
  *   no-shadow  – disable Shadow DOM (render into light DOM instead)
  *
  * Events dispatched (bubble + composed):
- *   rdf-loaded  – { detail: { triples: Array<{subject,predicate,object}> } }
+ *   rdf-loaded  – { detail: { triples: Array<{subject,predicate,object,objectDatatype?,objectLang?}> } }
  *   rdf-error   – { detail: { message: string, url?: string } }
  */
 
@@ -109,6 +109,8 @@ export class RdfAdapter extends HTMLElement {
               subject: quad.subject.value,
               predicate: quad.predicate.value,
               object: quad.object.value,
+              objectDatatype: quad.object.datatype?.value ?? null,
+              objectLang: quad.object.language ?? null,
             });
           }
         } catch (err) {

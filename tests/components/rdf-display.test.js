@@ -191,8 +191,7 @@ describe("<rdf-display>", () => {
     tmpl.remove();
   });
 
-  it("fills {predicate-class} and {object-is-uri} placeholders", async () => {
-    const tmpl = document.createElement("template");
+  it("fills {predicate-class} and {object-is-uri} placeholders", async () => {    const tmpl = document.createElement("template");
     tmpl.id = "placeholder-tmpl";
     tmpl.innerHTML = `<div class="t {predicate-class}" data-is-uri="{object-is-uri}">
       <span class="obj-text">{object}</span>
@@ -325,6 +324,132 @@ describe("<rdf-display>", () => {
 
     expect(el.shadowRoot.querySelector(".rdf-error")).toBeNull();
     expect(el.shadowRoot.querySelector(".rdf-list")).not.toBeNull();
+  });
+
+  // ---- {object-type}, {object-datatype}, {object-lang} tokens ---------------
+
+  it("fills {object-type} with 'string' for plain literals", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "otype-tmpl";
+    tmpl.innerHTML = `<div class="t" data-type="{object-type}">{object}</div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "otype-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "https://p", object: "hello" },
+    ]);
+    await updateComplete(el);
+
+    const div = el.shadowRoot.querySelector(".rdf-template-host .t");
+    expect(div).not.toBeNull();
+    expect(div.dataset.type).toBe("string");
+
+    tmpl.remove();
+  });
+
+  it("fills {object-type} with 'uri' for URI objects", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "otype-uri-tmpl";
+    tmpl.innerHTML = `<div class="t" data-type="{object-type}"></div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "otype-uri-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "https://p", object: "https://example.org/x" },
+    ]);
+    await updateComplete(el);
+
+    const div = el.shadowRoot.querySelector(".rdf-template-host .t");
+    expect(div.dataset.type).toBe("uri");
+
+    tmpl.remove();
+  });
+
+  it("fills {object-type} with 'integer' when objectDatatype contains 'integer'", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "otype-int-tmpl";
+    tmpl.innerHTML = `<div class="t" data-type="{object-type}">{object}</div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "otype-int-tmpl");
+    fireRdfLoaded(el, [
+      {
+        subject: "https://s",
+        predicate: "https://p",
+        object: "42",
+        objectDatatype: "http://www.w3.org/2001/XMLSchema#integer",
+      },
+    ]);
+    await updateComplete(el);
+
+    const div = el.shadowRoot.querySelector(".rdf-template-host .t");
+    expect(div.dataset.type).toBe("integer");
+
+    tmpl.remove();
+  });
+
+  it("fills {object-datatype} with the datatype URI", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "odatatype-tmpl";
+    tmpl.innerHTML = `<div class="t" data-dt="{object-datatype}"></div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "odatatype-tmpl");
+    fireRdfLoaded(el, [
+      {
+        subject: "https://s",
+        predicate: "https://p",
+        object: "2024-01-15",
+        objectDatatype: "http://www.w3.org/2001/XMLSchema#date",
+      },
+    ]);
+    await updateComplete(el);
+
+    const div = el.shadowRoot.querySelector(".rdf-template-host .t");
+    expect(div.dataset.dt).toBe("http://www.w3.org/2001/XMLSchema#date");
+
+    tmpl.remove();
+  });
+
+  it("fills {object-lang} with the language tag", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "olang-tmpl";
+    tmpl.innerHTML = `<div class="t" data-lang="{object-lang}"></div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "olang-tmpl");
+    fireRdfLoaded(el, [
+      {
+        subject: "https://s",
+        predicate: "https://p",
+        object: "Hello",
+        objectLang: "en",
+      },
+    ]);
+    await updateComplete(el);
+
+    const div = el.shadowRoot.querySelector(".rdf-template-host .t");
+    expect(div.dataset.lang).toBe("en");
+
+    tmpl.remove();
+  });
+
+  it("fills {object-type} with 'datetime' for ISO date-time heuristic", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "otype-dt-tmpl";
+    tmpl.innerHTML = `<div class="t" data-type="{object-type}"></div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "otype-dt-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "https://p", object: "2024-03-15T10:00:00" },
+    ]);
+    await updateComplete(el);
+
+    const div = el.shadowRoot.querySelector(".rdf-template-host .t");
+    expect(div.dataset.type).toBe("datetime");
+
+    tmpl.remove();
   });
 
   // ---- Direct property setter ----------------------------------------------
