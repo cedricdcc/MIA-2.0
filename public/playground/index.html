@@ -298,6 +298,66 @@
       line-height: 1.5;
     }
 
+    /* ── AI settings bar ─────────────────────────────────────────────── */
+    .ai-bar {
+      background: #f3f0ff;
+      border-bottom: 1px solid #d1c4e9;
+      padding: .55rem 1rem;
+      display: flex;
+      gap: .6rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ai-bar label { font-weight: 600; font-size: .8rem; color: #444; white-space: nowrap; }
+    .ai-key-input {
+      flex: 1;
+      min-width: 200px;
+      max-width: 320px;
+      padding: .4rem .65rem;
+      border: 1px solid #b39ddb;
+      border-radius: 4px;
+      font-size: .82rem;
+      font-family: monospace;
+      background: #fff;
+    }
+    .ai-model-select {
+      padding: .4rem .6rem;
+      border: 1px solid #b39ddb;
+      border-radius: 4px;
+      font-size: .82rem;
+      background: #fff;
+    }
+    .ai-suggest-btn {
+      padding: .4rem 1.1rem;
+      background: linear-gradient(135deg, #5c35d4 0%, #8a4af0 100%);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: .85rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ai-suggest-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .ai-suggest-btn:not(:disabled):hover { background: linear-gradient(135deg, #4527b0 0%, #6a2ad0 100%); }
+    .ai-status {
+      font-size: .78rem;
+      color: #555;
+      flex: 1;
+      min-width: 160px;
+    }
+    .ai-status.error { color: #c00; }
+    .ai-status.success { color: #2e7d32; }
+    .ai-key-note {
+      font-size: .72rem;
+      color: #4a148c;
+      background: #ede7f6;
+      border: 1px solid #b39ddb;
+      border-radius: 3px;
+      padding: .15em .5em;
+      white-space: nowrap;
+    }
+
     /* ── Responsive adjustments ──────────────────────────────────────── */
     @media (max-width: 900px) {
       .workspace {
@@ -337,6 +397,23 @@
   <button id="fetch-btn">Fetch RDF</button>
 
   <span class="status-text" id="status-text">Enter a URL and click Fetch RDF.</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════ AI BAR -->
+<div class="ai-bar">
+  <label for="ai-key">🤖 OpenRouter Key</label>
+  <input type="password" id="ai-key" class="ai-key-input"
+         placeholder="sk-or-v1-… (kept in-memory only)" />
+  <label for="ai-model">Model</label>
+  <select id="ai-model" class="ai-model-select">
+    <option value="openai/gpt-4o-mini">GPT-4o mini (fast &amp; cheap)</option>
+    <option value="anthropic/claude-3-haiku">Claude 3 Haiku (great HTML/CSS)</option>
+    <option value="google/gemini-flash-1.5">Gemini 1.5 Flash</option>
+    <option value="mistralai/mistral-7b-instruct">Mistral 7B (free tier)</option>
+  </select>
+  <button class="ai-suggest-btn" id="ai-suggest-btn">✨ AI Suggest</button>
+  <span class="ai-status" id="ai-status">Load RDF data and enter an OpenRouter API key, then click AI Suggest.</span>
+  <span class="ai-key-note" title="Your key is sent only to api.openrouter.ai and is never stored on disk or sent elsewhere.">🔐 in-memory only</span>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════ WORKSPACE -->
@@ -832,7 +909,7 @@ function downloadFile(name, content, mime) {
 }
 
 function buildStandaloneHtml(rdfUrl, tmplHtml, tmplCss) {
-
+  const safeUrl = rdfUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -840,12 +917,21 @@ function buildStandaloneHtml(rdfUrl, tmplHtml, tmplCss) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RDF Viewer</title>
 
-  <!-- Template styles – injected into rdf-display shadow root -->
+  <!--
+    rdf-adapter and rdf-display web components.
+    Replace the example.org placeholder URLs below with your actual deployment paths.
+    e.g.:  https://unpkg.com/mia-2.0@latest/dist/rdf-adapter.js
+           https://unpkg.com/mia-2.0@latest/dist/rdf-display.js
+  -->
+  <script type="module" src="https://example.org/rdf-adapter.js"><\/script>
+  <script type="module" src="https://example.org/rdf-display.js"><\/script>
+
+  <!-- Custom triple template styles (injected into rdf-display shadow root via template-styles attribute) -->
   <style id="rdf-custom-styles">
 ${tmplCss}
   </style>
 
-  <!-- Custom triple template -->
+  <!-- Custom triple template (referenced via template-id attribute) -->
   <template id="rdf-custom-tmpl">
 ${tmplHtml}
   </template>
@@ -853,99 +939,242 @@ ${tmplHtml}
   <style>
     body { margin: 1.5rem; font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; }
     h2 { color: #083d6b; font-size: 1rem; margin-bottom: 1rem; }
-    .error { color: #c00; font-size: .85rem; }
+    a { color: #1a6fa8; }
   </style>
 </head>
 <body>
-  <h2>RDF Viewer — <a href="${rdfUrl}" target="_blank" rel="noopener">${rdfUrl}</a></h2>
+  <h2>RDF Viewer — <a href="${safeUrl}" target="_blank" rel="noopener">${safeUrl}</a></h2>
 
   <rdf-display
     template-id="rdf-custom-tmpl"
     template-styles="rdf-custom-styles">
-    <rdf-adapter src="${rdfUrl}"></rdf-adapter>
+    <rdf-adapter src="${safeUrl}"></rdf-adapter>
   </rdf-display>
-
-  <!--
-    Load the rdf-adapter and rdf-display components.
-    In production, replace these paths with your own CDN / npm dist URLs.
-    e.g. https://unpkg.com/mia-2.0@latest/dist/rdf-adapter.js
-  -->
-  <script type="module">
-    // Inline minimal fallback – parses Turtle with N3.js loaded from esm.sh CDN
-    // so this file works standalone without a build step.
-    const N3_CDN = 'https://esm.sh/n3@1.17.3';
-
-    // ─── rdf-utils ──────────────────────────────────────────────────────
-    function isUri(v){ return typeof v==='string'&&/^https?:\\/\\//i.test(v); }
-    function shortenUri(u){ if(!u)return''; const h=u.lastIndexOf('#'); if(h>-1)return u.slice(h+1); const s=u.lastIndexOf('/'); if(s>-1&&s<u.length-1)return u.slice(s+1); return u; }
-    function toCssClass(u){ const s=shortenUri(u); return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'rdf-prop'; }
-
-    // ─── Fetch ──────────────────────────────────────────────────────────
-    async function fetchRdf(url){ 
-      for(const fmt of ['text/turtle','application/ld+json','application/n-triples','text/n3']){
-        try{
-          const r=await fetch(url,{headers:{Accept:fmt}});
-          if(!r.ok)continue;
-          const ct=r.headers.get('Content-Type')||'';
-          const mb=fmt.split(';')[0].trim();
-          if(!ct.includes(mb)&&!ct.includes('text/plain')&&ct!=='')continue;
-          return{text:await r.text(),format:fmt};
-        }catch(_){}
-      }
-      throw new Error('Could not fetch RDF from '+url);
-    }
-
-    // ─── Parse ──────────────────────────────────────────────────────────
-    async function parseRdf(text,format,baseIRI=''){
-      const{Parser}=await import(N3_CDN);
-      return new Promise((res,rej)=>{
-        const p=new Parser({format,baseIRI});
-        const quads=[];
-        p.parse(text,(err,q)=>{ if(err)return rej(err); if(q)quads.push(q); else res(quads); });
-      });
-    }
-
-    // ─── fillPlaceholders ───────────────────────────────────────────────
-    function fill(frag,t){
-      const map={'{subject}':t.subject,'{predicate}':t.predicate,'{predicate-short}':shortenUri(t.predicate),'{predicate-class}':toCssClass(t.predicate),'{object}':t.object,'{object-short}':shortenUri(t.object),'{object-is-uri}':isUri(t.object)?'true':'false'};
-      const walker=document.createTreeWalker(frag,NodeFilter.SHOW_TEXT);
-      const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
-      for(const n of nodes){let v=n.nodeValue;for(const[k,r]of Object.entries(map))v=v.split(k).join(r);n.nodeValue=v;}
-      for(const el of frag.querySelectorAll('*'))for(const a of Array.from(el.attributes)){let v=a.value;for(const[k,r]of Object.entries(map))v=v.split(k).join(r);if(v!==a.value)a.value=v;}
-    }
-
-    // ─── Main ───────────────────────────────────────────────────────────
-    const display = document.querySelector('rdf-display');
-    const adapter = document.querySelector('rdf-adapter');
-    const src     = adapter.getAttribute('src');
-    const tmpl    = document.getElementById('rdf-custom-tmpl');
-    const styles  = document.getElementById('rdf-custom-styles');
-
-    try {
-      const{text,format}=await fetchRdf(src);
-      const quads=await parseRdf(text,format,src);
-      const triples=quads.map(q=>({subject:q.subject.value,predicate:q.predicate.value,object:q.object.value}));
-
-      const host=document.createElement('div');
-      host.className='rdf-template-host';
-      const injStyle=document.createElement('style');
-      injStyle.textContent=styles.textContent;
-      host.prepend(injStyle);
-
-      for(const t of triples){
-        const clone=tmpl.content.cloneNode(true);
-        fill(clone,t);
-        host.appendChild(clone);
-      }
-
-      display.replaceWith(host);
-    } catch(err) {
-      display.textContent='Error: '+err.message;
-      display.classList.add('error');
-    }
-  <\/script>
 </body>
 </html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Suggest – calls OpenRouter to generate HTML + CSS template
+// ─────────────────────────────────────────────────────────────────────────────
+const aiSuggestBtn = document.getElementById('ai-suggest-btn');
+const aiKeyInput   = document.getElementById('ai-key');
+const aiModelSel   = document.getElementById('ai-model');
+const aiStatusEl   = document.getElementById('ai-status');
+
+function setAiStatus(html, type = '') {
+  aiStatusEl.innerHTML = html;
+  aiStatusEl.className = 'ai-status' + (type ? ' ' + type : '');
+}
+
+aiSuggestBtn.addEventListener('click', doAiSuggest);
+
+async function doAiSuggest() {
+  const apiKey = aiKeyInput.value.trim();
+  if (!apiKey) {
+    setAiStatus('❌ Please enter your OpenRouter API key first.', 'error');
+    aiKeyInput.focus();
+    return;
+  }
+  if (!_triples.length) {
+    setAiStatus('❌ Please fetch RDF data first, then click AI Suggest.', 'error');
+    return;
+  }
+
+  aiSuggestBtn.disabled = true;
+  setAiStatus('<span class="spinner"></span> Asking AI to generate template…');
+
+  try {
+    // Build predicate summary for the prompt
+    const predicateMap = new Map();
+    for (const t of _triples) {
+      if (!predicateMap.has(t.predicate)) predicateMap.set(t.predicate, []);
+      const examples = predicateMap.get(t.predicate);
+      if (examples.length < 3) examples.push(t.object);
+    }
+
+    const predicateLines = [...predicateMap.entries()].map(([uri, examples]) => {
+      const short    = shortenUri(uri);
+      const cssClass = toCssClass(uri);
+      const count    = _triples.filter(t => t.predicate === uri).length;
+      const exStr = examples.slice(0, 2).map(e =>
+        isUri(e) ? `<${e}>` : `"${e.slice(0, 80)}${e.length > 80 ? '…' : ''}"`
+      ).join(', ');
+      return `  - class="${cssClass}"  short="${short}"  ${count}×  e.g. ${exStr}`;
+    }).join('\n');
+
+    const prompt = buildAiPrompt(predicateLines, urlInput.value.trim());
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'MIA 2.0 RDF Template Playground',
+      },
+      body: JSON.stringify({
+        model: aiModelSel.value,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4096,
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) {
+      const httpStatus = `HTTP ${response.status}`;
+      let errMsg = httpStatus;
+      try {
+        const errData = await response.json();
+        errMsg = errData.error?.message || errData.message || httpStatus;
+      } catch (parseErr) {
+        // JSON parse failed — fall back to the HTTP status code already set
+        errMsg = httpStatus;
+      }
+      throw new Error(`OpenRouter: ${errMsg}`);
+    }
+
+    const data    = await response.json();
+    const content = data.choices?.[0]?.message?.content ?? '';
+    if (!content) throw new Error('Empty response from AI.');
+
+    const { html: aiHtml, css: aiCss, warnings } = extractAiCodeBlocks(content);
+
+    if (!aiHtml && !aiCss) {
+      throw new Error('No HTML/CSS code blocks found in AI response. The model may have refused or returned unexpected output.');
+    }
+
+    if (aiHtml) {
+      htmlTA.value = aiHtml;
+      document.querySelector('[data-tab="html-editor"]').click();
+    }
+    if (aiCss) cssTA.value = aiCss;
+
+    updatePreview();
+
+    const warnStr = warnings.length
+      ? ` ⚠️ ${warnings.length} validation warning${warnings.length > 1 ? 's' : ''}: ${warnings.join('; ')}`
+      : '';
+    setAiStatus(`✅ AI template applied!${warnStr}`, warnings.length ? '' : 'success');
+  } catch (err) {
+    setAiStatus(`❌ ${escHtml(err.message)}`, 'error');
+  } finally {
+    aiSuggestBtn.disabled = false;
+  }
+}
+
+/**
+ * Build a detailed prompt that instructs the LLM to generate
+ * an HTML template div + CSS for the rdf-display component.
+ */
+function buildAiPrompt(predicateLines, resourceUrl) {
+  return `You are an expert HTML and CSS developer specialising in semantic web / RDF data visualisation.
+Generate a display template for the <rdf-display> web component.
+
+## How the template system works
+
+The <rdf-display> component renders RDF triples. For EACH triple it clones a <div> template
+and replaces these placeholder tokens in text nodes AND attribute values:
+
+| Token              | Replaced with                                             |
+|--------------------|-----------------------------------------------------------|
+| {subject}          | Full subject URI                                          |
+| {predicate}        | Full predicate URI                                        |
+| {predicate-short}  | Short label  e.g. "title", "description"                  |
+| {predicate-class}  | CSS-safe class  e.g. "title", "description"               |
+| {object}           | Full object value (URI or literal string)                 |
+| {object-short}     | Short label for URI objects                               |
+| {object-is-uri}    | "true" if object is a URI, "false" if it is a literal     |
+
+IMPORTANT RULES:
+1. The template div is cloned ONCE PER TRIPLE. If there are 5 skos:member triples you get
+   5 sibling divs each with class "member". CSS flex/grid layout handles visual grouping.
+2. The CSS runs inside a Shadow DOM. The host container has class "rdf-template-host".
+3. Use data-is-uri="{object-is-uri}" on the triple div and then use attribute selectors
+   to show either a link or a text span:
+     .triple[data-is-uri="true"]  .text-value { display: none; }
+     .triple[data-is-uri="false"] .link-value { display: none; }
+4. Show title and description prominently. Group subjects/keywords as chips/tags.
+   Render members as cards. De-emphasise or hide rdf:type and structural predicates.
+5. Use modern CSS (flexbox/grid). Make it look professional and polished.
+
+## Resource being visualised
+URL: ${resourceUrl || '(unknown)'}
+
+## Predicates found in the actual fetched data
+
+${predicateLines}
+
+## Your task
+
+Generate a complete, visually attractive template for this specific data.
+
+## Required output format — return EXACTLY these two fenced code blocks and NOTHING else
+
+\`\`\`html
+<div class="triple {predicate-class}"
+     data-predicate="{predicate}"
+     data-is-uri="{object-is-uri}">
+  <!-- your markup using the tokens above -->
+</div>
+\`\`\`
+
+\`\`\`css
+/* Styles for .rdf-template-host and each .triple.{predicate-class} */
+.rdf-template-host { /* container layout */ }
+.triple { display: none; /* hide by default, show only explicitly styled ones */ }
+/* Show and style each predicate class: */
+.triple.title { /* prominent heading */ }
+/* … */
+\`\`\``;
+}
+
+/**
+ * Extract ```html and ```css code blocks from an LLM response.
+ * Returns { html, css, warnings[] }.
+ */
+function extractAiCodeBlocks(text) {
+  const warnings = [];
+
+  const htmlMatch = text.match(/```html\s*([\s\S]*?)```/i);
+  const cssMatch  = text.match(/```css\s*([\s\S]*?)```/i);
+
+  let html = htmlMatch ? htmlMatch[1].trim() : '';
+  let css  = cssMatch  ? cssMatch[1].trim()  : '';
+
+  // ── HTML validation ──────────────────────────────────────────────────────
+  if (html) {
+    // Remove any <script> tags for safety
+    if (/<script[\s>]/i.test(html)) {
+      html = html.replace(/<script[\s\S]*?<\/script>/gi, '<!-- script removed for safety -->');
+      warnings.push('<script> tag in generated HTML was removed for safety');
+    }
+    // Should contain at least one template token
+    const tokens = ['{subject}','{predicate}','{predicate-short}','{predicate-class}',
+                    '{object}','{object-short}','{object-is-uri}'];
+    if (!tokens.some(tok => html.includes(tok))) {
+      warnings.push('Generated HTML contains no template tokens — the output may not render dynamically');
+    }
+    // Try parsing with DOMParser
+    try {
+      const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+      if (doc.querySelector('parsererror')) warnings.push('Generated HTML may have syntax errors');
+    } catch (_) {}
+  }
+
+  // ── CSS validation ───────────────────────────────────────────────────────
+  if (css) {
+    const opens  = (css.match(/\{/g) || []).length;
+    const closes = (css.match(/\}/g) || []).length;
+    if (opens !== closes) {
+      warnings.push(`CSS brace mismatch: ${opens} opening vs ${closes} closing braces`);
+    }
+    if (!css.includes('.rdf-template-host') && !css.includes('.triple')) {
+      warnings.push('CSS does not target .rdf-template-host or .triple — styles may not apply');
+    }
+  }
+
+  return { html, css, warnings };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
