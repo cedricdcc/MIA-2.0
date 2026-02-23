@@ -444,6 +444,48 @@
     .block-clear-btn:hover { background: #2a1a0a; }
     .block-status { font-size: .68rem; color: #7a9abf; flex: 1; }
 
+    /* ── Subject filter (shown in blocks-mode) ───────────────────────── */
+    .subject-filter {
+      display: none;
+      background: #e3f0fb;
+      border-bottom: 1px solid #b0d0f0;
+      padding: .45rem .7rem;
+      flex-shrink: 0;
+    }
+    .subject-filter label {
+      font-size: .72rem; font-weight: 700; color: #083d6b;
+      display: block; margin-bottom: .25rem; letter-spacing: .02em;
+    }
+    .subject-filter select {
+      width: 100%; font-size: .75rem; padding: .28rem .45rem;
+      border: 1px solid #90caf9; border-radius: 4px;
+      background: #fff; color: #1a2b3c;
+    }
+    .canvas-subject-banner {
+      display: none; background: #0d3a6b; color: #7ab8e8;
+      font-size: .72rem; padding: .3rem .75rem; flex-shrink: 0;
+      border-bottom: 1px solid #1a4f80;
+    }
+    .canvas-subject-banner strong { color: #fff; word-break: break-all; }
+
+    /* ── Blocks workflow guide strip ─────────────────────────────────── */
+    .blocks-guide {
+      display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+      padding: .38rem .75rem; background: #1a2d42;
+      border-bottom: 1px solid #2a4060; font-size: .7rem; flex-shrink: 0;
+    }
+    .guide-step { color: #7ab8e8; }
+    .guide-arrow { color: #3a6fa8; font-weight: 700; }
+
+    /* ── Blocks builder mode (🧱 tab active) ────────────────────────── */
+    body.blocks-mode .workspace { grid-template-columns: 270px 1fr; }
+    body.blocks-mode .preview-panel { display: none; }
+    body.blocks-mode .token-grid { display: none; }
+    body.blocks-mode .editor-toolbar { display: none; }
+    body.blocks-mode .subject-filter { display: block; }
+    /* dim non-blocks tabs to hint they're secondary in this mode */
+    body.blocks-mode .editor-tabs .editor-tab:not([data-tab="block-editor"]) { opacity: .45; }
+
     /* ── Responsive adjustments ──────────────────────────────────────── */
     @media (max-width: 900px) {
       .workspace {
@@ -508,6 +550,11 @@
       📋 Properties
       <span id="props-count" style="margin-left:auto;font-weight:400;color:#7a9abf;font-size:.75rem"></span>
     </div>
+    <!-- Subject filter — shown in blocks mode to let users scope properties to one subject -->
+    <div class="subject-filter" id="subject-filter-row">
+      <label for="subject-select">🎯 Filter by subject:</label>
+      <select id="subject-select"><option value="">— All subjects —</option></select>
+    </div>
     <div class="panel-body" id="props-body">
       <div class="cors-note">
         ⚠️ Cross-origin RDF URLs require a CORS-enabled server or a proxy.
@@ -528,17 +575,29 @@
       <button class="editor-tab" data-tab="block-editor">🧱 Blocks</button>
     </div>
 
-    <div class="editor-pane active" id="html-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="editor-pane active" id="html-editor">
       <textarea class="code-editor" id="html-textarea" spellcheck="false"
         placeholder="Paste or write your <template> HTML here…"></textarea>
     </div>
-    <div class="editor-pane" id="css-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="editor-pane" id="css-editor">
       <textarea class="code-editor" id="css-textarea" spellcheck="false"
         placeholder="Write CSS for .rdf-template-host and .triple.* classes…"></textarea>
     </div>
 
     <!-- Block (visual) editor -->
-    <div class="editor-pane" id="block-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="editor-pane" id="block-editor">
+      <!-- Workflow guide -->
+      <div class="blocks-guide">
+        <span class="guide-step">① Pick subject ← (left panel)</span>
+        <span class="guide-arrow">→</span>
+        <span class="guide-step">② Drag blocks or click <strong style="color:#fff">Block</strong></span>
+        <span class="guide-arrow">→</span>
+        <span class="guide-step">③ Click <strong style="color:#fff">→ Generate Code</strong></span>
+      </div>
+      <!-- Selected-subject banner (shown when a subject is chosen) -->
+      <div class="canvas-subject-banner" id="canvas-subject-banner">
+        🎯 Building template for subject: <strong id="canvas-subject-label"></strong>
+      </div>
       <div class="block-editor-area">
         <!-- Palette -->
         <div class="block-palette" id="block-palette">
@@ -641,7 +700,9 @@ import { isUri, shortenUri } from '/src/utils/rdf-utils.js';
 // ─────────────────────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────────────────────
-let _triples = [];             // all parsed triples
+let _allTriples = [];          // full set of parsed triples (never filtered)
+let _triples = [];             // triples for the currently selected subject (or all)
+let _selectedSubject = '';     // subject URI being focused, or '' for all
 let _previewMode = 'template'; // current preview mode
 /** predicate URI → { count, examples[], type } — updated by populateProps */
 let _predicateMap = new Map();
@@ -734,6 +795,8 @@ document.querySelectorAll('.editor-tab').forEach(btn => {
     document.querySelectorAll('.editor-pane').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById(btn.dataset.tab).classList.add('active');
+    // Toggle dedicated blocks-builder full-screen layout
+    document.body.classList.toggle('blocks-mode', btn.dataset.tab === 'block-editor');
   });
 });
 
@@ -1092,6 +1155,70 @@ function populateProps(triples) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Subject selector: populate dropdown, auto-select single subject, wire change
+// ─────────────────────────────────────────────────────────────────────────────
+function populateSubjects(triples) {
+  const subjectCounts = new Map();
+  for (const t of triples) {
+    subjectCounts.set(t.subject, (subjectCounts.get(t.subject) ?? 0) + 1);
+  }
+  const subjects = [...subjectCounts.keys()].sort();
+
+  const sel = document.getElementById('subject-select');
+  sel.innerHTML = `<option value="">— All subjects (${subjects.length}) —</option>`;
+  for (const uri of subjects) {
+    const opt = document.createElement('option');
+    opt.value = uri;
+    opt.textContent = `${shortenUri(uri)}  (${subjectCounts.get(uri)} triples)`;
+    opt.title = uri;
+    sel.appendChild(opt);
+  }
+
+  // Auto-select if only one subject exists
+  if (subjects.length === 1) {
+    sel.value = subjects[0];
+    _selectedSubject = subjects[0];
+    _triples = triples; // already the only subject
+  } else {
+    sel.value = '';
+    _selectedSubject = '';
+  }
+  updateCanvasSubjectBanner();
+}
+
+document.getElementById('subject-select').addEventListener('change', function () {
+  _selectedSubject = this.value;
+  _triples = _selectedSubject
+    ? _allTriples.filter(t => t.subject === _selectedSubject)
+    : _allTriples;
+
+  populateProps(_triples);
+  updatePreview();
+  updateCanvasSubjectBanner();
+
+  // Refresh predicate selects in blocks already on the canvas
+  const keys = [..._predicateMap.keys()];
+  document.querySelectorAll('.canvas-block .block-predicate-sel').forEach(selEl => {
+    const prevVal = selEl.value;
+    selEl.innerHTML = `<option value="">(any predicate)</option>` +
+      keys.map(uri => `<option value="${escHtml(uri)}">${escHtml(shortenUri(uri))}</option>`).join('');
+    if (keys.includes(prevVal)) selEl.value = prevVal;
+  });
+});
+
+function updateCanvasSubjectBanner() {
+  const banner = document.getElementById('canvas-subject-banner');
+  const label  = document.getElementById('canvas-subject-label');
+  if (_selectedSubject) {
+    label.textContent = shortenUri(_selectedSubject);
+    label.title       = _selectedSubject;
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Block editor: canvas management and drag-and-drop
 // ─────────────────────────────────────────────────────────────────────────────
 const blockCanvas   = document.getElementById('block-canvas');
@@ -1247,7 +1374,9 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
     if (css)  { cssParts.push(`/* ── ${BLOCK_TYPES[blockType]?.label ?? blockType} ── */`); cssParts.push(css); cssParts.push(''); }
   }
 
-  htmlTA.value = htmlParts.join('\n');
+  htmlTA.value = (_selectedSubject
+    ? `<!-- Template for subject: ${escHtml(_selectedSubject)} -->\n`
+    : '') + htmlParts.join('\n');
   cssTA.value  = cssParts.join('\n');
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
@@ -1283,7 +1412,7 @@ async function doFetch() {
 
     const quads = await parseRdf(text, format, url);
 
-    _triples = quads.map(q => ({
+    _allTriples = quads.map(q => ({
       subject:       q.subject?.value   ?? String(q.subject),
       predicate:     q.predicate?.value ?? String(q.predicate),
       object:        q.object?.value    ?? String(q.object),
@@ -1291,7 +1420,11 @@ async function doFetch() {
       objectLang:     q.object?.language ?? null,
     }));
 
-    setStatus(`✅ Loaded ${_triples.length} triples from <em>${escHtml(url)}</em>`);
+    _selectedSubject = '';
+    _triples = _allTriples;
+
+    setStatus(`✅ Loaded ${_allTriples.length} triples from <em>${escHtml(url)}</em>`);
+    populateSubjects(_allTriples);
     populateProps(_triples);
     updatePreview();
   } catch (err) {
@@ -1412,7 +1545,8 @@ ${tmplHtml}
   <rdf-display
     template-id="rdf-custom-tmpl"
     template-styles="rdf-custom-styles">
-    <rdf-adapter src="${safeUrl}"></rdf-adapter>
+    <rdf-adapter src="${safeUrl}"${_selectedSubject
+      ? `\n       subject="${escHtml(_selectedSubject)}"` : ''}></rdf-adapter>
   </rdf-display>
 </body>
 </html>`;
@@ -1522,7 +1656,7 @@ async function doAiSuggest() {
     return `  - class="${cssClass}"  short="${short}"  type=${type}  ${count}×${isList}  e.g. ${exStr}`;
   }).join('\n');
 
-  const prompt = buildAiPrompt(predicateLines, urlInput.value.trim());
+  const prompt = buildAiPrompt(predicateLines, urlInput.value.trim(), _selectedSubject);
 
   let suggestion = null;
   const modelErrors = [];
@@ -1613,11 +1747,10 @@ async function doAiSuggest() {
   }
 }
 
-/**
- * Build a detailed prompt that instructs the LLM to generate
- * an HTML template div + CSS for the rdf-display component.
- */
-function buildAiPrompt(predicateLines, resourceUrl) {
+function buildAiPrompt(predicateLines, resourceUrl, subjectUri) {
+  const subjectLine = subjectUri
+    ? `Subject URI: ${subjectUri}\n(Only the predicates/objects for this specific subject are listed below.)`
+    : '(All subjects combined)';
   return `You are an expert HTML and CSS developer specialising in semantic web / RDF data visualisation.
 Generate a display template for the <rdf-display> web component.
 
@@ -1672,6 +1805,7 @@ div with the SAME CSS class. Use CSS flex/grid on .rdf-template-host to group th
 
 ## Resource being visualised
 URL: ${resourceUrl || '(unknown)'}
+${subjectLine}
 
 ## Predicates found in the actual fetched data
 (columns: CSS class | short name | inferred type | occurrence count | examples)
