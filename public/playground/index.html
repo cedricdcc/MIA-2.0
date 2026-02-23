@@ -1192,7 +1192,7 @@ function buildWidgetCode(type, predUri, label) {
   if (type === 'facet-widget') {
     const lbl = label || (predUri ? shortenUri(predUri) : 'Filter');
     const distinctVals = predUri
-      ? [...new Set(_allTriples.filter(t=>t.predicate===predUri).map(t=>t.object))].slice(0,40) // cap at 40 for UI performance
+      ? [...new Set(_allTriples.filter(t=>t.predicate===predUri).map(t=>t.object))].slice(0, MAX_FACET_VALUES)
       : [];
     const items = distinctVals.map(v =>
       `  <label class="facet-item"><input type="checkbox" class="facet-cb" value="${esc(v)}" checked /><span>${esc(isUri(v)?shortenUri(v):v)}</span></label>`
@@ -1209,7 +1209,8 @@ function buildWidgetCode(type, predUri, label) {
       : [];
     const min = nums.length ? Math.min(...nums) : 0;
     const max = nums.length ? Math.max(...nums) : 100;
-    const html = `<div class="widget-slider" data-slider-pred="${esc(predUri)}">\n  <div class="slider-label">${esc(lbl)}: <span class="slider-val">${min}–${max}</span></div>\n  <input class="slider-min" type="range" min="${min}" max="${max}" value="${min}" step="${nums.length ? (max-min)/100 : 1}" />\n  <input class="slider-max" type="range" min="${min}" max="${max}" value="${max}" step="${nums.length ? (max-min)/100 : 1}" />\n</div>`;
+    const stepSz = nums.length ? (max - min) / SLIDER_STEP_DIVISIONS : 1;
+    const html = `<div class="widget-slider" data-slider-pred="${esc(predUri)}">\n  <div class="slider-label">${esc(lbl)}: <span class="slider-val">${min}–${max}</span></div>\n  <input class="slider-min" type="range" min="${min}" max="${max}" value="${min}" step="${stepSz}" />\n  <input class="slider-max" type="range" min="${min}" max="${max}" value="${max}" step="${stepSz}" />\n</div>`;
     const css  = `.widget-slider { margin-bottom: .75rem; padding: .4rem .55rem; background: #f5f9ff; border: 1px solid #c5daf0; border-radius: 6px; }\n.slider-label { font-weight: 700; font-size: .78rem; color: #083d6b; margin-bottom: .2rem; }\n.slider-min,.slider-max { width: 100%; accent-color: #1a6fa8; }`;
     const js   = `(function(){\n  var sldr=document.querySelector('.widget-slider');\n  if(!sldr) return;\n  var pred=sldr.dataset.sliderPred;\n  var valEl=sldr.querySelector('.slider-val');\n  var minI=sldr.querySelector('.slider-min'),maxI=sldr.querySelector('.slider-max');\n  function upd(){\n    var lo=parseFloat(minI.value),hi=parseFloat(maxI.value);\n    if(lo>hi){var tmp=lo;lo=hi;hi=tmp;}\n    if(valEl) valEl.textContent=lo.toFixed(1)+'–'+hi.toFixed(1);\n    var host=document.querySelector('.rdf-template-host');\n    if(!host) return;\n    host.querySelectorAll('[data-rdf-predicate="'+pred+'"]').forEach(function(el){\n      var v=parseFloat(el.textContent);\n      el.style.display=(isNaN(v)||v<lo||v>hi)?'none':'';\n    });\n  }\n  minI&&minI.addEventListener('input',upd);\n  maxI&&maxI.addEventListener('input',upd);\n})();`;
     return { html: html + `\n<script data-widget="slider">\n${js}\n<\/script>`, css };
@@ -2231,6 +2232,14 @@ const aiStatusEl    = document.getElementById('ai-status');
 
 // Identifier suffix used by OpenRouter to denote free-tier models
 const FREE_MODEL_SUFFIX = ':free';
+// Widget limits
+const MAX_FACET_VALUES        = 40;   // max distinct facet checkbox options
+const SLIDER_STEP_DIVISIONS   = 100;  // number of equal steps across the slider range
+const MAX_PREDICATES_IN_CONTEXT = 30; // max predicates sent in the chat system message
+// Chat completion limits
+const CHAT_MAX_TOKENS    = 4096;  // generous limit for full template generation
+const CHAT_TEMPERATURE   = 0.4;   // slightly creative but mostly deterministic for code
+const MAX_ERROR_MSG_LEN  = 200;   // characters of HTTP error body to surface
 
 function setAiStatus(html, type = '') {
   aiStatusEl.innerHTML = html;
@@ -2344,7 +2353,7 @@ async function doAiSuggest() {
         body: JSON.stringify({
           model: modelId,
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 4096,
+          max_tokens: CHAT_MAX_TOKENS,
           temperature: 0.3,
         }),
       });
@@ -2616,7 +2625,7 @@ let _chatHistory = [];
 function buildChatSystemMessage() {
   const currentHtml = htmlTA.value;
   const currentCss  = cssTA.value;
-  const predicateSummary = [..._predicateMap.entries()].slice(0, 30).map(([uri, {count, type}]) =>
+  const predicateSummary = [..._predicateMap.entries()].slice(0, MAX_PREDICATES_IN_CONTEXT).map(([uri, {count, type}]) =>
     `  ${shortenUri(uri)} (${type}, ${count}x)`
   ).join('\n');
   return `You are an expert RDF template designer helping the user edit an HTML/CSS display template for Linked Data.
@@ -2729,14 +2738,14 @@ async function doSendChat() {
         model: modelId,
         messages,
         stream: true,
-        max_tokens: 4096,
-        temperature: 0.4,
+        max_tokens: CHAT_MAX_TOKENS,
+        temperature: CHAT_TEMPERATURE,
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
+      throw new Error(`HTTP ${response.status}: ${errText.slice(0, MAX_ERROR_MSG_LEN)}`);
     }
 
     const reader  = response.body.getReader();
