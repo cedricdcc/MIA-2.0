@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RDF Adapter Demo</title>
+
+  <!--
+    Signpost an RDF description for this page.
+    The <rdf-adapter> element will pick this up automatically.
+  -->
+  <link rel="describedby" href="/rdf-data/example.ttl" type="text/turtle" />
+
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    h1   { color: #2c5f8a; }
+    rdf-adapter { display: block; margin-top: 1rem; border: 1px solid #ccc; padding: 1rem; border-radius: 4px; }
+    rdf-adapter dl  { margin: 0; }
+    rdf-adapter dt  { font-weight: bold; color: #555; margin-top: .5rem; }
+    rdf-adapter dd  { margin-left: 1rem; color: #222; }
+    rdf-adapter a   { color: #2c5f8a; }
+    .rdf-loading    { color: #888; font-style: italic; }
+    .rdf-error      { color: #c00; }
+  </style>
+</head>
+<body>
+  <h1>MIA 2.0 – RDF Adapter Demo</h1>
+
+  <p>
+    This demo uses the <code>&lt;rdf-adapter&gt;</code> custom element to fetch,
+    parse, and render the RDF data linked via
+    <code>&lt;link rel="describedby"&gt;</code> in the document head.
+  </p>
+
+  <!-- Render all triples from the describedby source -->
+  <rdf-adapter></rdf-adapter>
+
+  <!-- Explicit src, filtered by subject -->
+  <h2>Filtered by subject</h2>
+  <rdf-adapter
+    src="/rdf-data/example.ttl"
+    subject="https://example.org/dataset/1"
+  ></rdf-adapter>
+
+  <script type="module" src="/src/components/rdf-adapter.js"></script>
+</body>
+</html>
