@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RDF Template Playground – MIA 2.0</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: .9rem;
+      background: #f0f4f8;
+      color: #1a2b3c;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #083d6b 0%, #1a6fa8 100%);
+      color: #fff;
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header h1 { margin: 0; font-size: 1.2rem; font-weight: 700; }
+    header .tagline { margin: 0; font-size: .8rem; opacity: .8; }
+
+    /* ── Main three-column layout ─────────────────────────────────────── */
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── Fetch bar (full width) ───────────────────────────────────────── */
+    .fetch-bar {
+      grid-column: 1 / -1;
+      background: #fff;
+      border-bottom: 1px solid #dde4ed;
+      padding: .75rem 1rem;
+      display: flex;
+      gap: .5rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .fetch-bar label { font-weight: 600; font-size: .82rem; color: #444; white-space: nowrap; }
+    .fetch-bar input[type="url"] {
+      flex: 1;
+      min-width: 260px;
+      padding: .45rem .7rem;
+      border: 1px solid #bbc8d8;
+      border-radius: 4px;
+      font-size: .88rem;
+    }
+    .fetch-bar select {
+      padding: .45rem .6rem;
+      border: 1px solid #bbc8d8;
+      border-radius: 4px;
+      font-size: .88rem;
+      background: #fff;
+    }
+    .fetch-bar button {
+      padding: .45rem 1.1rem;
+      background: #1a6fa8;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: .88rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .fetch-bar button:disabled { opacity: .55; cursor: not-allowed; }
+    .fetch-bar button:not(:disabled):hover { background: #083d6b; }
+    .status-text { font-size: .8rem; color: #666; min-width: 200px; }
+    .status-text.error { color: #c00; }
+
+    /* ── Panel base ───────────────────────────────────────────────────── */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid #dde4ed;
+    }
+    .panel:last-child { border-right: none; }
+    .panel-header {
+      background: #edf2f8;
+      border-bottom: 1px solid #dde4ed;
+      padding: .55rem .85rem;
+      font-weight: 700;
+      font-size: .8rem;
+      color: #3a5a7c;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      flex-shrink: 0;
+    }
+    .panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: .75rem;
+    }
+
+    /* ── Left: Properties panel ──────────────────────────────────────── */
+    .props-list { list-style: none; margin: 0; padding: 0; }
+    .props-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: .4rem;
+      padding: .4rem .3rem;
+      border-radius: 4px;
+      cursor: default;
+      border: 1px solid transparent;
+    }
+    .props-list li:hover { background: #f0f7ff; border-color: #c5daf0; }
+    .prop-count {
+      background: #1a6fa8;
+      color: #fff;
+      font-size: .65rem;
+      font-weight: 700;
+      border-radius: 10px;
+      padding: .1em .5em;
+      flex-shrink: 0;
+      margin-top: .15rem;
+    }
+    .prop-info { min-width: 0; }
+    .prop-short { font-weight: 600; font-size: .85rem; color: #083d6b; }
+    .prop-uri { font-size: .68rem; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; display: block; }
+    .prop-example { font-size: .72rem; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+
+    .insert-btns { display: flex; flex-direction: column; gap: .2rem; flex-shrink: 0; margin-left: auto; }
+    .insert-btn {
+      font-size: .62rem;
+      padding: .18em .55em;
+      border: 1px solid #bbc8d8;
+      border-radius: 3px;
+      background: #f4f8fc;
+      color: #3a5a7c;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .insert-btn:hover { background: #1a6fa8; color: #fff; border-color: #1a6fa8; }
+
+    /* ── Middle: Editor panel ─────────────────────────────────────────── */
+    .editor-tabs {
+      display: flex;
+      border-bottom: 1px solid #dde4ed;
+      background: #edf2f8;
+      flex-shrink: 0;
+    }
+    .editor-tab {
+      padding: .45rem .9rem;
+      font-size: .78rem;
+      font-weight: 600;
+      color: #557;
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+    .editor-tab.active {
+      color: #083d6b;
+      border-bottom-color: #1a6fa8;
+      background: #fff;
+    }
+    .editor-pane { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .editor-pane.active { display: flex; }
+    textarea.code-editor {
+      flex: 1;
+      width: 100%;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: .82rem;
+      line-height: 1.55;
+      padding: .75rem;
+      border: none;
+      outline: none;
+      resize: none;
+      background: #1e2a38;
+      color: #c9d8ea;
+      tab-size: 2;
+    }
+    textarea.code-editor::selection { background: #2a4e72; }
+    .editor-toolbar {
+      display: flex;
+      gap: .4rem;
+      padding: .4rem .75rem;
+      background: #f9fbfd;
+      border-top: 1px solid #dde4ed;
+      flex-shrink: 0;
+    }
+    .toolbar-btn {
+      padding: .3rem .75rem;
+      font-size: .78rem;
+      font-weight: 600;
+      border: 1px solid #bbc8d8;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #fff;
+      color: #3a5a7c;
+    }
+    .toolbar-btn:hover { background: #edf2f8; }
+    .toolbar-btn.primary { background: #1a6fa8; color: #fff; border-color: #1a6fa8; }
+    .toolbar-btn.primary:hover { background: #083d6b; }
+    .toolbar-btn.success { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+    .toolbar-btn.success:hover { background: #1b5e20; }
+
+    /* ── Right: Preview panel ─────────────────────────────────────────── */
+    .preview-panel { display: flex; flex-direction: column; overflow: hidden; }
+    .preview-mode-bar {
+      display: flex;
+      gap: .4rem;
+      padding: .35rem .75rem;
+      background: #edf2f8;
+      border-bottom: 1px solid #dde4ed;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .preview-mode-btn {
+      padding: .25rem .65rem;
+      font-size: .75rem;
+      font-weight: 600;
+      border: 1px solid #bbc8d8;
+      border-radius: 3px;
+      cursor: pointer;
+      background: #fff;
+      color: #3a5a7c;
+    }
+    .preview-mode-btn.active { background: #1a6fa8; color: #fff; border-color: #1a6fa8; }
+    #preview-iframe {
+      flex: 1;
+      border: none;
+      background: #fff;
+    }
+
+    /* ── Placeholder tokens cheat-sheet ──────────────────────────────── */
+    .token-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .3rem;
+      padding: .5rem .75rem;
+      background: #f7fafd;
+      border-top: 1px solid #dde4ed;
+      flex-shrink: 0;
+    }
+    .token-chip {
+      font-size: .7rem;
+      padding: .18em .55em;
+      background: #e3f0fb;
+      color: #0d47a1;
+      border: 1px solid #90caf9;
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: monospace;
+    }
+    .token-chip:hover { background: #1a6fa8; color: #fff; border-color: #1a6fa8; }
+
+    /* ── Empty / loading states ───────────────────────────────────────── */
+    .empty-state {
+      color: #aaa;
+      font-style: italic;
+      font-size: .82rem;
+      padding: 1rem 0;
+      text-align: center;
+    }
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid #bbd;
+      border-top-color: #1a6fa8;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── CORS proxy note ─────────────────────────────────────────────── */
+    .cors-note {
+      background: #fff8e1;
+      border-left: 3px solid #f9a825;
+      padding: .4rem .7rem;
+      font-size: .75rem;
+      color: #5d4037;
+      border-radius: 0 4px 4px 0;
+      margin-bottom: .5rem;
+      line-height: 1.5;
+    }
+
+    /* ── Responsive adjustments ──────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .workspace {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+        overflow: auto;
+      }
+      .panel { min-height: 280px; border-right: none; border-bottom: 1px solid #dde4ed; }
+      #preview-iframe { min-height: 320px; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🧪 RDF Template Playground</h1>
+    <p class="tagline">Fetch RDF data → inspect properties → build &amp; preview a custom display template → download</p>
+  </div>
+  <a href="/" style="color:#fff;opacity:.7;font-size:.8rem;margin-left:auto">← Back to demos</a>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════ FETCH BAR -->
+<div class="fetch-bar">
+  <label for="rdf-url">RDF URL</label>
+  <input type="url" id="rdf-url" placeholder="https://marineinfo.org/id/collection/619"
+         value="https://marineinfo.org/id/collection/619" />
+
+  <label for="rdf-format" style="margin-left:.5rem">Format</label>
+  <select id="rdf-format">
+    <option value="auto">Auto-negotiate</option>
+    <option value="text/turtle">Turtle (.ttl)</option>
+    <option value="application/ld+json">JSON-LD (.jsonld)</option>
+    <option value="application/n-triples">N-Triples (.nt)</option>
+    <option value="text/n3">N3 (.n3)</option>
+  </select>
+
+  <button id="fetch-btn">Fetch RDF</button>
+
+  <span class="status-text" id="status-text">Enter a URL and click Fetch RDF.</span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ WORKSPACE -->
+<div class="workspace">
+
+  <!-- ── COLUMN 1: Properties ── -->
+  <div class="panel" id="props-panel">
+    <div class="panel-header">
+      📋 Properties
+      <span id="props-count" style="margin-left:auto;font-weight:400;color:#7a9abf;font-size:.75rem"></span>
+    </div>
+    <div class="panel-body" id="props-body">
+      <div class="cors-note">
+        ⚠️ Cross-origin RDF URLs require a CORS-enabled server or a proxy.
+        Local files served by <code>npm run dev</code> always work.
+      </div>
+      <div class="empty-state" id="props-empty">No RDF loaded yet.</div>
+      <ul class="props-list" id="props-list" style="display:none"></ul>
+    </div>
+  </div>
+
+  <!-- ── COLUMN 2: Editor ── -->
+  <div class="panel">
+    <div class="panel-header">✏️ Template Editor</div>
+
+    <div class="editor-tabs">
+      <button class="editor-tab active" data-tab="html-editor">HTML template</button>
+      <button class="editor-tab" data-tab="css-editor">CSS styles</button>
+    </div>
+
+    <div class="editor-pane active" id="html-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <textarea class="code-editor" id="html-textarea" spellcheck="false"
+        placeholder="Paste or write your <template> HTML here…"></textarea>
+    </div>
+    <div class="editor-pane" id="css-editor" style="flex:1;display:flex;flex-direction:column;min-height:0">
+      <textarea class="code-editor" id="css-textarea" spellcheck="false"
+        placeholder="Write CSS for .rdf-template-host and .triple.* classes…"></textarea>
+    </div>
+
+    <!-- Token cheat-sheet row -->
+    <div class="token-grid" title="Click a token to insert it at the cursor">
+      <span style="font-size:.7rem;color:#888;margin-right:.25rem;align-self:center">Insert:</span>
+      <span class="token-chip" data-token="{subject}">{subject}</span>
+      <span class="token-chip" data-token="{predicate}">{predicate}</span>
+      <span class="token-chip" data-token="{predicate-short}">{predicate-short}</span>
+      <span class="token-chip" data-token="{predicate-class}">{predicate-class}</span>
+      <span class="token-chip" data-token="{object}">{object}</span>
+      <span class="token-chip" data-token="{object-short}">{object-short}</span>
+      <span class="token-chip" data-token="{object-is-uri}">{object-is-uri}</span>
+    </div>
+
+    <div class="editor-toolbar">
+      <button class="toolbar-btn" id="reset-btn">↺ Reset to starter</button>
+      <button class="toolbar-btn primary" id="preview-btn">▶ Update preview</button>
+      <button class="toolbar-btn success" id="download-btn" style="margin-left:auto">⬇ Download</button>
+    </div>
+  </div>
+
+  <!-- ── COLUMN 3: Preview ── -->
+  <div class="panel preview-panel">
+    <div class="panel-header">👁️ Live Preview</div>
+    <div class="preview-mode-bar">
+      <span style="font-size:.75rem;color:#7a9abf;margin-right:.4rem">Display mode:</span>
+      <button class="preview-mode-btn active" data-mode="template">Template</button>
+      <button class="preview-mode-btn" data-mode="list">List</button>
+      <button class="preview-mode-btn" data-mode="grid">Grid</button>
+      <button class="preview-mode-btn" data-mode="table">Table</button>
+    </div>
+    <iframe id="preview-iframe" title="Preview"></iframe>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ HIDDEN WORKERS -->
+<!-- N3.js is loaded from CDN for the in-page fetch/parse pipeline -->
+<script type="module">
+// ─────────────────────────────────────────────────────────────────────────────
+// Imports from project source (works in Vite dev server; adjust for standalone)
+// ─────────────────────────────────────────────────────────────────────────────
+import { fetchRdf } from '/src/utils/rdf-fetcher.js';
+import { parseRdf, terminateWorker } from '/src/utils/rdf-parser.js';
+import { isUri, shortenUri } from '/src/utils/rdf-utils.js';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let _triples = [];           // all parsed triples
+let _previewMode = 'template'; // current preview mode
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM refs
+// ─────────────────────────────────────────────────────────────────────────────
+const urlInput     = document.getElementById('rdf-url');
+const formatSelect = document.getElementById('rdf-format');
+const fetchBtn     = document.getElementById('fetch-btn');
+const statusText   = document.getElementById('status-text');
+const propsList    = document.getElementById('props-list');
+const propsEmpty   = document.getElementById('props-empty');
+const propsCount   = document.getElementById('props-count');
+const htmlTA       = document.getElementById('html-textarea');
+const cssTA        = document.getElementById('css-textarea');
+const previewFrame = document.getElementById('preview-iframe');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Default starter template
+// ─────────────────────────────────────────────────────────────────────────────
+const DEFAULT_HTML = `<div
+  class="triple {predicate-class}"
+  data-predicate="{predicate}"
+  data-is-uri="{object-is-uri}">
+  <span class="label">{predicate-short}</span>
+  <span class="value-text">{object}</span>
+  <a class="value-link" href="{object}" target="_blank" rel="noopener">
+    {object-short}
+  </a>
+</div>`;
+
+const DEFAULT_CSS = `/* ── Host container ──────────────────────────────────────── */
+.rdf-template-host {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  padding: 1.25rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.08);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ── Default: hide all triples (show only explicitly styled ones) */
+.triple { display: none; }
+
+/* ── Show every triple as a simple chip (remove this to hide unwanted ones) */
+.triple {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  background: #e8f4fd;
+  border: 1px solid #90caf9;
+  border-radius: 12px;
+  padding: .25em .8em;
+  font-size: .82rem;
+  color: #0d47a1;
+}
+
+/* Show label as prefix */
+.triple .label {
+  font-weight: 700;
+  color: #555;
+  font-size: .72rem;
+}
+
+/* For URIs: show the link; for literals: show the text */
+.triple[data-is-uri="true"] .value-text { display: none; }
+.triple[data-is-uri="false"] .value-link { display: none; }
+
+.triple .value-link {
+  color: inherit;
+  text-decoration: none;
+}
+.triple .value-link:hover { text-decoration: underline; }`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Initialise editors with defaults
+// ─────────────────────────────────────────────────────────────────────────────
+htmlTA.value = DEFAULT_HTML;
+cssTA.value  = DEFAULT_CSS;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tab switching
+// ─────────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.editor-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.editor-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.editor-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Token-chip click → insert into focused textarea
+// ─────────────────────────────────────────────────────────────────────────────
+let _lastFocusedTA = htmlTA;
+[htmlTA, cssTA].forEach(ta => ta.addEventListener('focus', () => _lastFocusedTA = ta));
+
+document.querySelectorAll('.token-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const token = chip.dataset.token;
+    const ta = _lastFocusedTA;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.slice(0, start) + token + ta.value.slice(end);
+    ta.selectionStart = ta.selectionEnd = start + token.length;
+    ta.focus();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Property panel "Insert" buttons
+// ─────────────────────────────────────────────────────────────────────────────
+function insertAtCursor(ta, text) {
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + text.length;
+  ta.focus();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Preview mode buttons
+// ─────────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.preview-mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.preview-mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _previewMode = btn.dataset.mode;
+    updatePreview();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RDF helpers (subset, mirrors rdf-display internals)
+// ─────────────────────────────────────────────────────────────────────────────
+function toCssClass(uri) {
+  const short = shortenUri(uri);
+  const cls = short.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return cls || 'rdf-prop';
+}
+
+function fillPlaceholders(html, triple) {
+  const map = {
+    '{subject}':         triple.subject   ?? '',
+    '{predicate}':       triple.predicate ?? '',
+    '{predicate-short}': shortenUri(triple.predicate ?? ''),
+    '{predicate-class}': toCssClass(triple.predicate ?? ''),
+    '{object}':          triple.object    ?? '',
+    '{object-short}':    shortenUri(triple.object ?? ''),
+    '{object-is-uri}':   isUri(triple.object ?? '') ? 'true' : 'false',
+  };
+  let out = html;
+  for (const [k, v] of Object.entries(map)) {
+    out = out.split(k).join(v.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'));
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build rendered HTML for the preview iframe
+// ─────────────────────────────────────────────────────────────────────────────
+function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
+  let bodyContent = '';
+
+  if (mode === 'template') {
+    const rows = triples.map(t => fillPlaceholders(templateHtml, t)).join('\n');
+    bodyContent = `
+      <style id="tmpl-styles">${templateCss}</style>
+      <div class="rdf-template-host">${rows}</div>`;
+  } else if (mode === 'list') {
+    const rows = triples.map(t => {
+      const short = shortenUri(t.predicate);
+      const val = isUri(t.object)
+        ? `<a href="${t.object}" target="_blank" rel="noopener">${shortenUri(t.object)}</a>`
+        : escHtml(t.object);
+      return `<dt title="${escHtml(t.predicate)}">${escHtml(short)}</dt><dd>${val}</dd>`;
+    }).join('');
+    bodyContent = `<dl style="margin:0">${rows}</dl>`;
+  } else if (mode === 'grid') {
+    const cards = triples.map(t => {
+      const val = isUri(t.object)
+        ? `<a href="${t.object}" target="_blank" rel="noopener">${shortenUri(t.object)}</a>`
+        : escHtml(t.object);
+      return `<div class="card"><div class="pred" title="${escHtml(t.predicate)}">${escHtml(shortenUri(t.predicate))}</div><div class="obj">${val}</div></div>`;
+    }).join('');
+    bodyContent = `<div class="grid">${cards}</div>`;
+  } else if (mode === 'table') {
+    const rows = triples.map(t => {
+      const val = isUri(t.object)
+        ? `<a href="${t.object}" target="_blank" rel="noopener">${shortenUri(t.object)}</a>`
+        : escHtml(t.object);
+      return `<tr><td title="${escHtml(t.predicate)}">${escHtml(shortenUri(t.predicate))}</td><td>${val}</td></tr>`;
+    }).join('');
+    bodyContent = `<table><thead><tr><th>Predicate</th><th>Object</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  return `<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    *,*::before,*::after{box-sizing:border-box}
+    body{margin:1rem;font-family:'Segoe UI',system-ui,sans-serif;font-size:.9rem;color:#1a2b3c;background:#f0f4f8}
+    a{color:#1a6fa8;text-decoration:none}a:hover{text-decoration:underline}
+    dl{margin:0;padding:0}dt{font-weight:700;font-size:.8em;color:#555;margin-top:.5rem}dd{margin:0 0 0 1rem}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.6rem}
+    .card{border:1px solid #dde4ed;border-radius:5px;padding:.65rem;background:#fff}
+    .pred{font-weight:700;font-size:.78em;color:#555;margin-bottom:.25rem}
+    table{border-collapse:collapse;width:100%}th,td{border:1px solid #dde4ed;padding:.4rem .65rem;text-align:left}th{background:#edf2f8;font-size:.85em}
+  </style>
+</head><body>${bodyContent}</body></html>`;
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Update preview iframe
+// ─────────────────────────────────────────────────────────────────────────────
+function updatePreview() {
+  if (!_triples.length) {
+    previewFrame.srcdoc = `<body style="font-family:sans-serif;color:#aaa;padding:2rem;font-style:italic">Fetch RDF data first, then the preview will appear here.</body>`;
+    return;
+  }
+  const doc = buildPreviewDoc(_triples, _previewMode, htmlTA.value, cssTA.value);
+  previewFrame.srcdoc = doc;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Populate properties panel
+// ─────────────────────────────────────────────────────────────────────────────
+function populateProps(triples) {
+  // Build a map: predicate URI → { count, examples }
+  const map = new Map();
+  for (const t of triples) {
+    const p = t.predicate;
+    if (!map.has(p)) map.set(p, { count: 0, examples: [] });
+    const entry = map.get(p);
+    entry.count++;
+    if (entry.examples.length < 2) entry.examples.push(t.object);
+  }
+
+  propsList.innerHTML = '';
+  for (const [uri, { count, examples }] of map) {
+    const short = shortenUri(uri);
+    const cssClass = toCssClass(uri);
+    const example = examples[0] ?? '';
+
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="prop-info">
+        <span class="prop-short">${escHtml(short)}</span>
+        <span class="prop-uri" title="${escHtml(uri)}">${escHtml(uri)}</span>
+        <span class="prop-example" title="${escHtml(example)}">${escHtml(example.slice(0,60))}${example.length > 60 ? '…' : ''}</span>
+      </div>
+      <span class="prop-count">${count}</span>
+      <div class="insert-btns">
+        <button class="insert-btn" data-insert="html"
+          data-class="${escHtml(cssClass)}"
+          data-short="${escHtml(short)}"
+          title="Insert a div block into the HTML template">HTML</button>
+        <button class="insert-btn" data-insert="css"
+          data-class="${escHtml(cssClass)}"
+          title="Insert a CSS rule into the styles">CSS</button>
+      </div>`;
+    propsList.appendChild(li);
+
+    li.querySelector('[data-insert="html"]').addEventListener('click', (e) => {
+      const cls  = e.currentTarget.dataset.class;
+      const srt  = e.currentTarget.dataset.short;
+      const snippet = `<div class="triple ${cls}" data-predicate="{predicate}" data-is-uri="{object-is-uri}">
+  <span class="label">${srt}</span>
+  <span class="value-text">{object}</span>
+  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>
+</div>`;
+      insertAtCursor(htmlTA, '\n' + snippet);
+      // Switch to HTML tab
+      document.querySelector('[data-tab="html-editor"]').click();
+    });
+
+    li.querySelector('[data-insert="css"]').addEventListener('click', (e) => {
+      const cls = e.currentTarget.dataset.class;
+      const snippet = `\n/* ── .triple.${cls} ── */\n.triple.${cls} {\n  display: block;\n  /* your styles here */\n}\n`;
+      insertAtCursor(cssTA, snippet);
+      // Switch to CSS tab
+      document.querySelector('[data-tab="css-editor"]').click();
+    });
+  }
+
+  propsList.style.display = 'block';
+  propsEmpty.style.display = 'none';
+  propsCount.textContent = `${map.size} predicates · ${triples.length} triples`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fetch RDF
+// ─────────────────────────────────────────────────────────────────────────────
+async function doFetch() {
+  const url = urlInput.value.trim();
+  if (!url) { setStatus('Please enter a URL.', true); return; }
+
+  fetchBtn.disabled = true;
+  setStatus(`<span class="spinner"></span> Fetching…`);
+  propsEmpty.textContent = 'Loading…';
+  propsEmpty.style.display = 'block';
+  propsList.style.display = 'none';
+  propsCount.textContent = '';
+  _triples = [];
+
+  try {
+    const formatVal = formatSelect.value;
+    const formats = formatVal === 'auto'
+      ? ['text/turtle','application/ld+json','application/n-triples','text/n3']
+      : [formatVal];
+
+    const { text, format } = await fetchRdf(url, { formats });
+    setStatus(`<span class="spinner"></span> Parsing ${format}…`);
+
+    const quads = await parseRdf(text, format, url);
+
+    _triples = quads.map(q => ({
+      subject:   q.subject?.value   ?? String(q.subject),
+      predicate: q.predicate?.value ?? String(q.predicate),
+      object:    q.object?.value    ?? String(q.object),
+    }));
+
+    setStatus(`✅ Loaded ${_triples.length} triples from <em>${escHtml(url)}</em>`);
+    populateProps(_triples);
+    updatePreview();
+  } catch (err) {
+    setStatus(`❌ ${escHtml(err.message)}`, true);
+    propsEmpty.textContent = 'Failed to load RDF.';
+    propsEmpty.style.display = 'block';
+    propsList.style.display = 'none';
+  } finally {
+    fetchBtn.disabled = false;
+  }
+}
+
+function setStatus(html, isError = false) {
+  statusText.innerHTML = html;
+  statusText.className = 'status-text' + (isError ? ' error' : '');
+}
+
+fetchBtn.addEventListener('click', doFetch);
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Preview & reset buttons
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('preview-btn').addEventListener('click', updatePreview);
+document.getElementById('reset-btn').addEventListener('click', () => {
+  htmlTA.value = DEFAULT_HTML;
+  cssTA.value  = DEFAULT_CSS;
+  updatePreview();
+});
+
+// Auto-update preview when editors change (debounced)
+let _debounce;
+function schedulePreview() {
+  clearTimeout(_debounce);
+  _debounce = setTimeout(updatePreview, 600);
+}
+htmlTA.addEventListener('input', schedulePreview);
+cssTA.addEventListener('input',  schedulePreview);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Download
+// ─────────────────────────────────────────────────────────────────────────────
+document.getElementById('download-btn').addEventListener('click', () => {
+  const url    = urlInput.value.trim() || '';
+  const tmplHtml = htmlTA.value;
+  const tmplCss  = cssTA.value;
+
+  // 1. Template snippet (just the <template> + <style> blocks)
+  const templateFile = `<!-- rdf-display template snippet
+     Generated by RDF Template Playground – MIA 2.0
+     Source: ${url}
+-->
+
+<!-- Inject this <style> into rdf-display via: template-styles="rdf-custom-styles" -->
+<style id="rdf-custom-styles">
+${tmplCss}
+</style>
+
+<!-- Reference this <template> via: template-id="rdf-custom-tmpl" -->
+<template id="rdf-custom-tmpl">
+${tmplHtml}
+</template>
+`;
+
+  // 2. Full standalone HTML page
+  const standaloneHtml = buildStandaloneHtml(url, tmplHtml, tmplCss);
+
+  downloadFile('rdf-template.html',   templateFile,    'text/html');
+  downloadFile('rdf-standalone.html', standaloneHtml,  'text/html');
+});
+
+function downloadFile(name, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function buildStandaloneHtml(rdfUrl, tmplHtml, tmplCss) {
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RDF Viewer</title>
+
+  <!-- Template styles – injected into rdf-display shadow root -->
+  <style id="rdf-custom-styles">
+${tmplCss}
+  </style>
+
+  <!-- Custom triple template -->
+  <template id="rdf-custom-tmpl">
+${tmplHtml}
+  </template>
+
+  <style>
+    body { margin: 1.5rem; font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; }
+    h2 { color: #083d6b; font-size: 1rem; margin-bottom: 1rem; }
+    .error { color: #c00; font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <h2>RDF Viewer — <a href="${rdfUrl}" target="_blank" rel="noopener">${rdfUrl}</a></h2>
+
+  <rdf-display
+    template-id="rdf-custom-tmpl"
+    template-styles="rdf-custom-styles">
+    <rdf-adapter src="${rdfUrl}"></rdf-adapter>
+  </rdf-display>
+
+  <!--
+    Load the rdf-adapter and rdf-display components.
+    In production, replace these paths with your own CDN / npm dist URLs.
+    e.g. https://unpkg.com/mia-2.0@latest/dist/rdf-adapter.js
+  -->
+  <script type="module">
+    // Inline minimal fallback – parses Turtle with N3.js loaded from esm.sh CDN
+    // so this file works standalone without a build step.
+    const N3_CDN = 'https://esm.sh/n3@1.17.3';
+
+    // ─── rdf-utils ──────────────────────────────────────────────────────
+    function isUri(v){ return typeof v==='string'&&/^https?:\\/\\//i.test(v); }
+    function shortenUri(u){ if(!u)return''; const h=u.lastIndexOf('#'); if(h>-1)return u.slice(h+1); const s=u.lastIndexOf('/'); if(s>-1&&s<u.length-1)return u.slice(s+1); return u; }
+    function toCssClass(u){ const s=shortenUri(u); return s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'rdf-prop'; }
+
+    // ─── Fetch ──────────────────────────────────────────────────────────
+    async function fetchRdf(url){ 
+      for(const fmt of ['text/turtle','application/ld+json','application/n-triples','text/n3']){
+        try{
+          const r=await fetch(url,{headers:{Accept:fmt}});
+          if(!r.ok)continue;
+          const ct=r.headers.get('Content-Type')||'';
+          const mb=fmt.split(';')[0].trim();
+          if(!ct.includes(mb)&&!ct.includes('text/plain')&&ct!=='')continue;
+          return{text:await r.text(),format:fmt};
+        }catch(_){}
+      }
+      throw new Error('Could not fetch RDF from '+url);
+    }
+
+    // ─── Parse ──────────────────────────────────────────────────────────
+    async function parseRdf(text,format,baseIRI=''){
+      const{Parser}=await import(N3_CDN);
+      return new Promise((res,rej)=>{
+        const p=new Parser({format,baseIRI});
+        const quads=[];
+        p.parse(text,(err,q)=>{ if(err)return rej(err); if(q)quads.push(q); else res(quads); });
+      });
+    }
+
+    // ─── fillPlaceholders ───────────────────────────────────────────────
+    function fill(frag,t){
+      const map={'{subject}':t.subject,'{predicate}':t.predicate,'{predicate-short}':shortenUri(t.predicate),'{predicate-class}':toCssClass(t.predicate),'{object}':t.object,'{object-short}':shortenUri(t.object),'{object-is-uri}':isUri(t.object)?'true':'false'};
+      const walker=document.createTreeWalker(frag,NodeFilter.SHOW_TEXT);
+      const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+      for(const n of nodes){let v=n.nodeValue;for(const[k,r]of Object.entries(map))v=v.split(k).join(r);n.nodeValue=v;}
+      for(const el of frag.querySelectorAll('*'))for(const a of Array.from(el.attributes)){let v=a.value;for(const[k,r]of Object.entries(map))v=v.split(k).join(r);if(v!==a.value)a.value=v;}
+    }
+
+    // ─── Main ───────────────────────────────────────────────────────────
+    const display = document.querySelector('rdf-display');
+    const adapter = document.querySelector('rdf-adapter');
+    const src     = adapter.getAttribute('src');
+    const tmpl    = document.getElementById('rdf-custom-tmpl');
+    const styles  = document.getElementById('rdf-custom-styles');
+
+    try {
+      const{text,format}=await fetchRdf(src);
+      const quads=await parseRdf(text,format,src);
+      const triples=quads.map(q=>({subject:q.subject.value,predicate:q.predicate.value,object:q.object.value}));
+
+      const host=document.createElement('div');
+      host.className='rdf-template-host';
+      const injStyle=document.createElement('style');
+      injStyle.textContent=styles.textContent;
+      host.prepend(injStyle);
+
+      for(const t of triples){
+        const clone=tmpl.content.cloneNode(true);
+        fill(clone,t);
+        host.appendChild(clone);
+      }
+
+      display.replaceWith(host);
+    } catch(err) {
+      display.textContent='Error: '+err.message;
+      display.classList.add('error');
+    }
+  <\/script>
+</body>
+</html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Initialise empty preview
+// ─────────────────────────────────────────────────────────────────────────────
+updatePreview();
+</script>
+</body>
+</html>
