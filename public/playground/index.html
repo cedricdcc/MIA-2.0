@@ -540,7 +540,7 @@
       margin: .25rem 0 .1rem 1.5rem;
     }
     .custom-block-area label { font-size: .73rem; color: #7aaad0; }
-    .custom-block-html, .custom-block-css {
+    .custom-block-html, .custom-block-css, .custom-block-js {
       width: 100%; font-size: .75rem; font-family: monospace;
       padding: .3rem .4rem; background: #111c2a; border: 1px solid #2a3e54;
       border-radius: 3px; color: #cdd7e5; resize: vertical; min-height: 46px;
@@ -568,6 +568,81 @@
     body.blocks-mode .subject-filter { display: block; }
     /* dim non-blocks tabs to hint they're secondary in this mode */
     body.blocks-mode .editor-tabs .editor-tab:not([data-tab="block-editor"]) { opacity: .45; }
+
+    /* ── Widget blocks type badge ─────────────────────────────────────── */
+    .type-badge.image { background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; }
+
+    /* ── Chat panel ──────────────────────────────────────────────────────── */
+    .chat-panel {
+      position: fixed; right: 0; top: 0; bottom: 0;
+      width: 340px; background: #fff;
+      border-left: 1px solid #dde4ed;
+      display: flex; flex-direction: column;
+      box-shadow: -3px 0 16px rgba(0,0,0,.12);
+      z-index: 200; transition: transform .25s ease;
+    }
+    .chat-panel.collapsed { transform: translateX(calc(100% - 32px)); }
+    .chat-toggle-btn {
+      position: absolute; left: -1px; top: 50%; transform: translate(-100%, -50%);
+      background: #5c35d4; color: #fff; border: none; border-radius: 6px 0 0 6px;
+      padding: .4rem .45rem; cursor: pointer; font-size: .85rem; writing-mode: vertical-lr;
+      text-orientation: mixed; line-height: 1; min-height: 80px;
+      display: flex; align-items: center; justify-content: center; gap: .3rem;
+    }
+    .chat-toggle-btn:hover { background: #4527b0; }
+    .chat-header {
+      padding: .55rem .75rem; background: linear-gradient(135deg,#5c35d4,#8a4af0);
+      color: #fff; font-weight: 700; font-size: .85rem;
+      display: flex; align-items: center; gap: .4rem;
+      flex-shrink: 0;
+    }
+    .chat-header small { font-weight: 400; opacity: .7; font-size: .7rem; margin-left: auto; }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: .65rem .75rem;
+      display: flex; flex-direction: column; gap: .55rem;
+      background: #f8f9fb;
+    }
+    .chat-empty { color: #aaa; font-size: .8rem; text-align: center; padding: 1.5rem 0; font-style: italic; }
+    .chat-bubble {
+      max-width: 92%; padding: .5rem .7rem; border-radius: 10px;
+      font-size: .8rem; line-height: 1.55; word-break: break-word;
+    }
+    .chat-bubble.user {
+      background: linear-gradient(135deg,#5c35d4,#8a4af0); color: #fff;
+      align-self: flex-end; border-bottom-right-radius: 3px;
+    }
+    .chat-bubble.assistant {
+      background: #fff; color: #1a2b3c;
+      border: 1px solid #dde4ed; align-self: flex-start;
+      border-bottom-left-radius: 3px;
+    }
+    .chat-bubble.assistant pre { background: #1a2535; color: #c9d8ea; border-radius: 4px; padding: .4rem .6rem; overflow-x: auto; font-size: .72rem; margin: .3rem 0; }
+    .chat-bubble.assistant code { background: #f0f0f0; border-radius: 3px; padding: .05em .3em; font-size: .78em; color: #c00; }
+    .chat-applied-note { font-size: .68rem; color: #2e7d32; margin-top: .25rem; font-style: italic; }
+    .chat-cursor::after { content: '▋'; animation: blink .7s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .chat-input-row {
+      display: flex; gap: .4rem; padding: .5rem .65rem;
+      border-top: 1px solid #dde4ed; background: #fff; flex-shrink: 0;
+    }
+    .chat-input {
+      flex: 1; padding: .4rem .55rem; border: 1px solid #bbc8d8;
+      border-radius: 8px; font-size: .8rem; resize: none;
+      font-family: inherit; min-height: 40px; max-height: 120px;
+    }
+    .chat-send-btn {
+      padding: .4rem .75rem; background: linear-gradient(135deg,#5c35d4,#8a4af0);
+      color: #fff; border: none; border-radius: 8px; cursor: pointer;
+      font-size: .82rem; font-weight: 700; align-self: flex-end; white-space: nowrap;
+    }
+    .chat-send-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .chat-send-btn:not(:disabled):hover { background: linear-gradient(135deg,#4527b0,#6a2ad0); }
+    .chat-apply-btn {
+      font-size: .68rem; padding: .15rem .55rem;
+      background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;
+      border-radius: 4px; cursor: pointer; margin-top: .3rem; display: inline-block;
+    }
+    .chat-apply-btn:hover { background: #c8e6c9; }
 
     /* ── Responsive adjustments ──────────────────────────────────────── */
     @media (max-width: 900px) {
@@ -727,6 +802,16 @@
           <div class="palette-item" draggable="true" data-block-type="custom" title="Custom HTML/CSS/JS block — add your own markup, styles and external scripts">
             <span class="palette-icon">⟨/⟩</span><span>Custom</span>
           </div>
+          <div class="palette-section">Widgets</div>
+          <div class="palette-item" draggable="true" data-block-type="search-widget" title="Search widget — filters visible blocks by text">
+            <span class="palette-icon">🔍</span><span>Search</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="facet-widget" title="Facet browser — checkboxes for a predicate's distinct values">
+            <span class="palette-icon">☰</span><span>Facets</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="slider-widget" title="Slider widget — range filter for numeric predicates">
+            <span class="palette-icon">⇔</span><span>Slider</span>
+          </div>
         </div>
         <!-- Canvas -->
         <div class="block-canvas" id="block-canvas">
@@ -784,6 +869,23 @@
     <iframe id="preview-iframe" title="Preview"></iframe>
   </div>
 
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ CHAT PANEL -->
+<div class="chat-panel" id="chat-panel">
+  <button class="chat-toggle-btn" id="chat-toggle-btn" title="Toggle chat">💬 AI Chat</button>
+  <div class="chat-header">
+    💬 AI Chat Assistant
+    <small>aware of current template &amp; CSS</small>
+  </div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="chat-empty" id="chat-empty">Ask the AI to adjust your template or explain the RDF data…</div>
+  </div>
+  <div class="chat-input-row">
+    <textarea class="chat-input" id="chat-input" rows="2"
+      placeholder="e.g. Make the heading blue and add a border to cards…"></textarea>
+    <button class="chat-send-btn" id="chat-send-btn">Send</button>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════ HIDDEN WORKERS -->
@@ -999,6 +1101,9 @@ const BLOCK_TYPES = {
   section:       { label: 'Section/Card',icon: '▣',  suggestsFor: ['uri'], isContainer: true },
   custom:        { label: 'Custom',      icon: '⟨/⟩', suggestsFor: [], isCustom: true },
   divider:       { label: 'Divider',     icon: '─',  suggestsFor: [] },
+  'search-widget': { label: 'Search', icon: '🔍', suggestsFor: [], isWidget: true },
+  'facet-widget':  { label: 'Facets', icon: '☰',  suggestsFor: ['uri','string'], isWidget: true },
+  'slider-widget': { label: 'Slider', icon: '⇔',  suggestsFor: ['integer','decimal'], isWidget: true },
 };
 
 function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '', pathStr = '', indent = '') {
@@ -1074,6 +1179,44 @@ function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '
   }
 }
 
+function buildWidgetCode(type, predUri, label) {
+  const cssClass = toCssClass(predUri);
+  const esc      = s => escHtml(s);
+  if (type === 'search-widget') {
+    const lbl = label || 'Search…';
+    const html = `<div class="widget-search">\n  <input class="widget-search-input" type="search" placeholder="${esc(lbl)}" />\n</div>`;
+    const css  = `.widget-search { margin-bottom: .75rem; }\n.widget-search-input { width: 100%; padding: .4rem .65rem; border: 1px solid #bbc8d8; border-radius: 20px; font-size: .88rem; }`;
+    const js   = `(function(){\n  var inp=document.querySelector('.widget-search-input');\n  if(!inp) return;\n  inp.addEventListener('input',function(){\n    var q=this.value.toLowerCase();\n    var host=document.querySelector('.rdf-template-host');\n    if(!host) return;\n    host.querySelectorAll('[data-rdf-predicate],[class*="block-"]').forEach(function(el){\n      if(el.closest('.widget-search')) return;\n      el.style.display=(!q||el.textContent.toLowerCase().includes(q))?'':'none';\n    });\n  });\n})();`;
+    return { html: html + `\n<script data-widget="search">\n${js}\n<\/script>`, css };
+  }
+  if (type === 'facet-widget') {
+    const lbl = label || (predUri ? shortenUri(predUri) : 'Filter');
+    const distinctVals = predUri
+      ? [...new Set(_allTriples.filter(t=>t.predicate===predUri).map(t=>t.object))].slice(0,40) // cap at 40 for UI performance
+      : [];
+    const items = distinctVals.map(v =>
+      `  <label class="facet-item"><input type="checkbox" class="facet-cb" value="${esc(v)}" checked /><span>${esc(isUri(v)?shortenUri(v):v)}</span></label>`
+    ).join('\n');
+    const html = `<div class="widget-facets" data-facet-pred="${esc(predUri)}">\n  <div class="facet-label">${esc(lbl)}</div>\n${items}\n</div>`;
+    const css  = `.widget-facets { margin-bottom: .75rem; padding: .4rem .55rem; background: #f5f9ff; border: 1px solid #c5daf0; border-radius: 6px; }\n.facet-label { font-weight: 700; font-size: .78rem; color: #083d6b; margin-bottom: .3rem; }\n.facet-item { display: flex; align-items: center; gap: .3rem; font-size: .8rem; cursor: pointer; padding: .12rem 0; }\n.facet-item input { cursor: pointer; }`;
+    const js   = `(function(){\n  var facet=document.querySelector('.widget-facets');\n  if(!facet) return;\n  var pred=facet.dataset.facetPred;\n  facet.querySelectorAll('.facet-cb').forEach(function(cb){\n    cb.addEventListener('change',function(){\n      var checked=[...facet.querySelectorAll('.facet-cb:checked')].map(c=>c.value);\n      var host=document.querySelector('.rdf-template-host');\n      if(!host) return;\n      host.querySelectorAll('[data-rdf-predicate="'+pred+'"]').forEach(function(el){\n        var obj=el.textContent.trim();\n        el.style.display=(checked.length===0||checked.some(v=>obj.includes(v)))?'':'none';\n      });\n    });\n  });\n})();`;
+    return { html: html + `\n<script data-widget="facets">\n${js}\n<\/script>`, css };
+  }
+  if (type === 'slider-widget') {
+    const lbl = label || (predUri ? shortenUri(predUri) : 'Range');
+    const nums = predUri
+      ? _allTriples.filter(t=>t.predicate===predUri).map(t=>parseFloat(t.object)).filter(n=>!isNaN(n))
+      : [];
+    const min = nums.length ? Math.min(...nums) : 0;
+    const max = nums.length ? Math.max(...nums) : 100;
+    const html = `<div class="widget-slider" data-slider-pred="${esc(predUri)}">\n  <div class="slider-label">${esc(lbl)}: <span class="slider-val">${min}–${max}</span></div>\n  <input class="slider-min" type="range" min="${min}" max="${max}" value="${min}" step="${nums.length ? (max-min)/100 : 1}" />\n  <input class="slider-max" type="range" min="${min}" max="${max}" value="${max}" step="${nums.length ? (max-min)/100 : 1}" />\n</div>`;
+    const css  = `.widget-slider { margin-bottom: .75rem; padding: .4rem .55rem; background: #f5f9ff; border: 1px solid #c5daf0; border-radius: 6px; }\n.slider-label { font-weight: 700; font-size: .78rem; color: #083d6b; margin-bottom: .2rem; }\n.slider-min,.slider-max { width: 100%; accent-color: #1a6fa8; }`;
+    const js   = `(function(){\n  var sldr=document.querySelector('.widget-slider');\n  if(!sldr) return;\n  var pred=sldr.dataset.sliderPred;\n  var valEl=sldr.querySelector('.slider-val');\n  var minI=sldr.querySelector('.slider-min'),maxI=sldr.querySelector('.slider-max');\n  function upd(){\n    var lo=parseFloat(minI.value),hi=parseFloat(maxI.value);\n    if(lo>hi){var tmp=lo;lo=hi;hi=tmp;}\n    if(valEl) valEl.textContent=lo.toFixed(1)+'–'+hi.toFixed(1);\n    var host=document.querySelector('.rdf-template-host');\n    if(!host) return;\n    host.querySelectorAll('[data-rdf-predicate="'+pred+'"]').forEach(function(el){\n      var v=parseFloat(el.textContent);\n      el.style.display=(isNaN(v)||v<lo||v>hi)?'none':'';\n    });\n  }\n  minI&&minI.addEventListener('input',upd);\n  maxI&&maxI.addEventListener('input',upd);\n})();`;
+    return { html: html + `\n<script data-widget="slider">\n${js}\n<\/script>`, css };
+  }
+  return { html: '', css: '' };
+}
+
 /**
  * Returns a sub-scope predicate map for predicates reachable from the objects
  * of a given parent predicate URI. Used to populate sub-block dropdowns.
@@ -1120,9 +1263,11 @@ function getBlockCode(block, commentPrefix = '') {
   if (blockType === 'custom') {
     const customHtml = block.querySelector('.custom-block-html')?.value.trim() ?? '';
     const customCss  = block.querySelector('.custom-block-css')?.value.trim() ?? '';
+    const customJs   = block.querySelector('.custom-block-js')?.value.trim() ?? '';
     const extScript  = block.querySelector('.custom-block-ext')?.value.trim() ?? '';
     const scriptTag  = extScript ? `\n<!-- External script for custom block -->\n<script src="${escHtml(extScript)}"><\/script>` : '';
-    return { html: customHtml + scriptTag, css: customCss };
+    const jsTag      = customJs ? `\n<script data-custom-block>\n${customJs}\n<\/script>` : '';
+    return { html: customHtml + scriptTag + jsTag, css: customCss };
   }
 
   if (blockType === 'section') {
@@ -1152,6 +1297,12 @@ function getBlockCode(block, commentPrefix = '') {
       html: `<div class="block-section"${pathAttr}${langAttr}${typeAttr}>${innerHtml}</div>`,
       css:  `.block-section { display: flex; flex-direction: column; gap: .4rem; border: 2px solid #a8c8e8; border-radius: 8px; padding: .75rem; background: #f0f7ff; width: 100%; }\n${innerCssParts.join('\n')}`,
     };
+  }
+
+  if (BLOCK_TYPES[blockType]?.isWidget) {
+    const predUri  = block.querySelector('.block-predicate-sel')?.value ?? '';
+    const label    = block.querySelector('.widget-label-input')?.value.trim() ?? '';
+    return buildWidgetCode(blockType, predUri, label);
   }
 
   return blockToHtmlCss(blockType, predUri, fLang, fType, pathStr);
@@ -1603,6 +1754,7 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
   // For section block: compute sub-scope predicates and build section canvas
   const isSectionBlock = blockType === 'section';
   const isCustomBlock  = blockType === 'custom';
+  const isWidgetBlock  = !!(BLOCK_TYPES[blockType]?.isWidget);
 
   // Sub-scope predicates for section (predicates available under the chosen URI predicate)
   let subScopeOptsHtml = '';
@@ -1619,14 +1771,16 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
       <span class="block-drag-handle" title="Drag to reorder">⠿</span>
       <span class="block-type-icon">${def.icon}</span>
       <span class="block-type-label">${escHtml(def.label)}</span>
-      ${isCustomBlock ? '' : `<select class="block-predicate-sel" title="Predicate this block applies to">
-        <option value="">(any predicate)</option>
+      ${(isCustomBlock) ? '' : `<select class="block-predicate-sel" title="Predicate this block applies to">
+        <option value="">${isWidgetBlock ? '(all predicates)' : '(any predicate)'}</option>
         ${opts}
       </select>`}
-      ${isCustomBlock ? '' : `<button class="block-filter-toggle" title="Add language / type / path filter">⚙</button>`}
+      ${isWidgetBlock ? `<label style="font-size:.6rem;color:#7aaad0;margin-left:.3rem">Label:</label>
+      <input class="widget-label-input" type="text" placeholder="Search…" style="font-size:.68rem;width:80px;background:#1a2535;border:1px solid #3a5a7c;border-radius:3px;color:#c9d8ea;padding:.12rem .3rem" />` : ''}
+      ${(!isCustomBlock && !isWidgetBlock) ? `<button class="block-filter-toggle" title="Add language / type / path filter">⚙</button>` : ''}
       <button class="block-delete-btn" title="Remove block">✕</button>
     </div>
-    ${isCustomBlock ? '' : `<div class="block-filter-row" style="display:none">
+    ${(!isCustomBlock && !isWidgetBlock) ? `<div class="block-filter-row" style="display:none">
       <label>Lang:</label>
       <input class="block-filter-sel block-filter-lang" list="lang-list" placeholder="en / fr / …"
              value="${escHtml(filterLang)}" style="width:4.5rem" />
@@ -1635,7 +1789,7 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
       <label style="margin-left:.5rem">Path:</label>
       <input class="block-path-input" placeholder="pred1URI pred2URI …" title="Multi-hop property path (overrides predicate dropdown)" style="flex:1;min-width:140px" />
       <span class="block-filter-hint">→ filters / traverses graph for this block</span>
-    </div>`}
+    </div>` : ''}
     ${isSectionBlock ? `<div class="section-sub-canvas">
       <div class="sub-block-list"></div>
       <button class="add-sub-btn">+ Sub-block</button>
@@ -1645,6 +1799,8 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
       <textarea class="custom-block-html" placeholder="<div class=&quot;custom&quot;>…</div>" rows="3"></textarea>
       <label style="font-size:.78rem;color:#7aaad0">CSS (optional):</label>
       <textarea class="custom-block-css" placeholder=".custom { … }" rows="2"></textarea>
+      <label style="font-size:.78rem;color:#7aaad0">JavaScript (optional, runs after rdf-loaded):</label>
+      <textarea class="custom-block-js" placeholder="// document.querySelector(...)" rows="3"></textarea>
       <label style="font-size:.78rem;color:#7aaad0">External script URL (optional):</label>
       <input class="custom-block-ext" type="url" placeholder="https://cdn.example.com/library.js" />
     </div>` : ''}`;
@@ -1658,7 +1814,7 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
     scheduleBlockPreview();
   });
 
-  if (!isCustomBlock) {
+  if (!isCustomBlock && !isWidgetBlock) {
     block.querySelector('.block-filter-toggle').addEventListener('click', () => {
       const row = block.querySelector('.block-filter-row');
       row.style.display = row.style.display === 'none' ? 'flex' : 'none';
@@ -1673,10 +1829,14 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
     block.querySelector('.block-filter-lang').addEventListener('input',  scheduleBlockPreview);
     block.querySelector('.block-filter-type').addEventListener('change', scheduleBlockPreview);
     block.querySelector('.block-path-input').addEventListener('input',   scheduleBlockPreview);
-  } else {
+  } else if (isCustomBlock) {
     // Custom block: live preview on textarea changes
     block.querySelector('.custom-block-html').addEventListener('input', scheduleBlockPreview);
     block.querySelector('.custom-block-css').addEventListener('input',  scheduleBlockPreview);
+    block.querySelector('.custom-block-js').addEventListener('input',   scheduleBlockPreview);
+  } else if (isWidgetBlock) {
+    block.querySelector('.block-predicate-sel').addEventListener('change', scheduleBlockPreview);
+    block.querySelector('.widget-label-input')?.addEventListener('input', scheduleBlockPreview);
   }
 
   // Section: wire sub-block add button and initial sub-scope population
@@ -2433,6 +2593,210 @@ function extractAiCodeBlocks(text) {
 
   return { html, css, warnings };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Chat Panel – streaming responses, auto-applies HTML/CSS code blocks
+// ─────────────────────────────────────────────────────────────────────────────
+const chatPanel    = document.getElementById('chat-panel');
+const chatToggle   = document.getElementById('chat-toggle-btn');
+const chatMessages = document.getElementById('chat-messages');
+const chatInput    = document.getElementById('chat-input');
+const chatSendBtn  = document.getElementById('chat-send-btn');
+
+// Start collapsed
+chatPanel.classList.add('collapsed');
+
+chatToggle.addEventListener('click', () => {
+  chatPanel.classList.toggle('collapsed');
+});
+
+// Chat history (sent with each request for multi-turn context)
+let _chatHistory = [];
+
+function buildChatSystemMessage() {
+  const currentHtml = htmlTA.value;
+  const currentCss  = cssTA.value;
+  const predicateSummary = [..._predicateMap.entries()].slice(0, 30).map(([uri, {count, type}]) =>
+    `  ${shortenUri(uri)} (${type}, ${count}x)`
+  ).join('\n');
+  return `You are an expert RDF template designer helping the user edit an HTML/CSS display template for Linked Data.
+
+CURRENT HTML TEMPLATE:
+\`\`\`html
+${currentHtml || '(empty)'}
+\`\`\`
+
+CURRENT CSS STYLES:
+\`\`\`css
+${currentCss || '(empty)'}
+\`\`\`
+
+RDF resource: ${_triples.length ? (urlInput.value || '(unknown)') : '(no data loaded yet)'}
+Predicates available:
+${predicateSummary || '  (none yet)'}
+
+The template uses data-rdf-predicate="<uri>" attributes for block-mode rendering (one render per subject; elements auto-repeat for list-valued predicates). Token placeholders: {object}, {predicate-short}, {predicate-class}, {object-is-uri}, {object-type}, {object-lang}.
+
+When the user asks you to modify the template, output the COMPLETE new HTML inside a \`\`\`html code block and the COMPLETE new CSS inside a \`\`\`css code block. If only HTML or only CSS needs changing, output only that block. Do not include any other prose before or after the code blocks when providing code changes.`;
+}
+
+function appendChatBubble(role, text, isStreaming = false) {
+  const empty = document.getElementById('chat-empty');
+  if (empty) empty.remove();
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble ${role}`;
+  if (isStreaming) bubble.classList.add('chat-cursor');
+  // Simple markdown: ```code``` blocks
+  bubble.innerHTML = formatChatText(text);
+  chatMessages.appendChild(bubble);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
+}
+
+function formatChatText(text) {
+  // Escape HTML, then restore ```...``` as <pre><code>
+  let out = escHtml(text);
+  out = out.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre><code>${code.trim()}</code></pre>`
+  );
+  out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+  out = out.replace(/\n/g, '<br>');
+  return out;
+}
+
+function addApplyButton(bubble, htmlCode, cssCode) {
+  const btn = document.createElement('button');
+  btn.className = 'chat-apply-btn';
+  btn.textContent = '✅ Apply to editor';
+  btn.addEventListener('click', () => {
+    if (htmlCode) { htmlTA.value = htmlCode; document.querySelector('[data-tab="html-editor"]').click(); }
+    if (cssCode)  { cssTA.value = cssCode; }
+    updatePreview();
+    btn.textContent = '✅ Applied!';
+    btn.disabled = true;
+    const note = document.createElement('div');
+    note.className = 'chat-applied-note';
+    note.textContent = 'Template updated in editor.';
+    bubble.appendChild(note);
+  });
+  bubble.appendChild(btn);
+}
+
+async function doSendChat() {
+  const apiKey = aiKeyInput.value.trim();
+  if (!apiKey) {
+    setAiStatus('❌ Enter your OpenRouter API key (used for chat too).', 'error');
+    aiKeyInput.focus();
+    return;
+  }
+
+  const userText = chatInput.value.trim();
+  if (!userText) return;
+  chatInput.value = '';
+
+  // Add user message
+  appendChatBubble('user', userText);
+  _chatHistory.push({ role: 'user', content: userText });
+
+  // Get selected model (fall back to first available)
+  const modelId = aiModelSel.value || ([...aiModelSel.options].find(o => o.value)?.value ?? '');
+  if (!modelId) {
+    appendChatBubble('assistant', '⚠️ No model selected — click "Load free models" first.');
+    return;
+  }
+
+  chatSendBtn.disabled = true;
+
+  // Create placeholder streaming bubble
+  const bubble = appendChatBubble('assistant', '', true);
+  let fullText = '';
+
+  try {
+    const messages = [
+      { role: 'system', content: buildChatSystemMessage() },
+      ..._chatHistory,
+    ];
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'MIA 2.0 RDF Template Playground Chat',
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages,
+        stream: true,
+        max_tokens: 4096,
+        temperature: 0.4,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const reader  = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete SSE lines
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete last line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            bubble.classList.add('chat-cursor');
+            bubble.innerHTML = formatChatText(fullText);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
+        } catch (e) { console.warn('Failed to parse SSE chunk:', e); }
+      }
+    }
+
+    bubble.classList.remove('chat-cursor');
+    bubble.innerHTML = formatChatText(fullText);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Add to history
+    _chatHistory.push({ role: 'assistant', content: fullText });
+
+    // Auto-detect code blocks and offer apply button
+    const htmlMatch = fullText.match(/```html\s*([\s\S]*?)```/i);
+    const cssMatch  = fullText.match(/```css\s*([\s\S]*?)```/i);
+    if (htmlMatch || cssMatch) {
+      const aiHtml = htmlMatch ? htmlMatch[1].trim() : null;
+      const aiCss  = cssMatch  ? cssMatch[1].trim()  : null;
+      addApplyButton(bubble, aiHtml, aiCss);
+    }
+
+  } catch (err) {
+    bubble.classList.remove('chat-cursor');
+    bubble.innerHTML = `❌ ${escHtml(err.message)}`;
+  } finally {
+    chatSendBtn.disabled = false;
+  }
+}
+
+chatSendBtn.addEventListener('click', doSendChat);
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSendChat(); }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Initialise empty preview
