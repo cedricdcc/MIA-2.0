@@ -1,0 +1,18 @@
+@prefix dct:  <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+
+<https://example.org/dataset/1>
+    a schema:Dataset ;
+    dct:title "Example Marine Dataset" ;
+    dct:description "A sample RDF Turtle file used for the MIA 2.0 demo." ;
+    dct:creator <https://example.org/person/alice> ;
+    dct:created "2024-01-15"^^xsd:date ;
+    dct:license <https://creativecommons.org/licenses/by/4.0/> ;
+    schema:url <https://example.org/dataset/1> .
+
+<https://example.org/person/alice>
+    a foaf:Person ;
+    foaf:name "Alice Example" ;
+    foaf:mbox <mailto:alice@example.org> .

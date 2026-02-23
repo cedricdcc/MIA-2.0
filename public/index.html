@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RDF Adapter Demo</title>
+
+  <!--
+    Signpost an RDF description for this page.
+    The <rdf-adapter> element will pick this up automatically.
+  -->
+  <link rel="describedby" href="/rdf-data/example.ttl" type="text/turtle" />
+
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    h1   { color: #2c5f8a; }
+    h2   { color: #3a7faa; margin-top: 2rem; }
+    section { margin-bottom: 2rem; border: 1px solid #e0e0e0; padding: 1rem; border-radius: 6px; }
+    pre  { background: #f5f5f5; padding: .75rem; border-radius: 4px; font-size: 0.85em; overflow: auto; }
+  </style>
+
+  <!-- Custom template for the template-id demo -->
+  <template id="triple-card">
+    <div style="border:1px solid #ccc; border-radius:4px; padding:.6rem; margin:.4rem 0; background:#fff;">
+      <strong style="color:#555; font-size:.8em">{predicate-short}</strong><br/>
+      <span>{object}</span>
+    </div>
+  </template>
+</head>
+<body>
+  <h1>MIA 2.0 – RDF Adapter &amp; Display Demo</h1>
+
+  <p style="background:#e8f4fd;border-left:4px solid #1a6fa8;padding:.6rem 1rem;border-radius:0 4px 4px 0;font-size:.85rem;">
+    💡 <strong>MarineInfo collection template demo:</strong>
+    <a href="/templates/marineinfo-collection.html">templates/marineinfo-collection.html</a>
+    — shows how to use <code>template-id</code> + <code>template-styles</code> with
+    IMIS/VLIZ-style RDF (keyword chips, dataset card grid, person badges).
+  </p>
+
+  <p style="background:#e8f5e9;border-left:4px solid #2e7d32;padding:.6rem 1rem;border-radius:0 4px 4px 0;font-size:.85rem;">
+    🧪 <strong>Template Playground:</strong>
+    <a href="/playground/">playground/</a>
+    — fetch any RDF URL, browse its properties, edit a custom template in real-time, preview all display modes, and download the result.
+  </p>
+
+  <!-- ============================================================
+       1. Standalone rdf-adapter (auto-discovers describedby link)
+  ============================================================ -->
+  <h2>1. Standalone &lt;rdf-adapter&gt; (auto-discovers describedby)</h2>
+  <section>
+    <pre>&lt;rdf-adapter&gt;&lt;/rdf-adapter&gt;</pre>
+    <rdf-adapter></rdf-adapter>
+  </section>
+
+  <!-- ============================================================
+       2. rdf-display – list mode (default)
+  ============================================================ -->
+  <h2>2. &lt;rdf-display&gt; – list mode (default)</h2>
+  <section>
+    <pre>&lt;rdf-display&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display>
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       3. rdf-display – grid mode
+  ============================================================ -->
+  <h2>3. &lt;rdf-display&gt; – grid mode</h2>
+  <section>
+    <pre>&lt;rdf-display display-mode="grid"&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display display-mode="grid">
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       4. rdf-display – table mode
+  ============================================================ -->
+  <h2>4. &lt;rdf-display&gt; – table mode</h2>
+  <section>
+    <pre>&lt;rdf-display display-mode="table"&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display display-mode="table">
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       5. rdf-display – custom template
+  ============================================================ -->
+  <h2>5. &lt;rdf-display&gt; – custom &lt;template&gt;</h2>
+  <section>
+    <pre>&lt;!-- template element defined in &lt;head&gt; --&gt;
+&lt;template id="triple-card"&gt;
+  &lt;div&gt;&lt;strong&gt;{predicate-short}&lt;/strong&gt;&lt;br/&gt;&lt;span&gt;{object}&lt;/span&gt;&lt;/div&gt;
+&lt;/template&gt;
+
+&lt;rdf-display template-id="triple-card"&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display template-id="triple-card">
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       6. rdf-display – subject-filtered
+  ============================================================ -->
+  <h2>6. &lt;rdf-display&gt; – subject-filtered</h2>
+  <section>
+    <pre>&lt;rdf-display display-mode="table"&gt;
+  &lt;rdf-adapter
+    src="/rdf-data/example.ttl"
+    subject="https://example.org/dataset/1"
+  &gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display display-mode="table">
+      <rdf-adapter
+        src="/rdf-data/example.ttl"
+        subject="https://example.org/dataset/1"
+      ></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <script type="module" src="/src/components/rdf-adapter.js"></script>
+  <script type="module" src="/src/components/rdf-display.js"></script>
+</body>
+</html>

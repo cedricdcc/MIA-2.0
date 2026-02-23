@@ -1,0 +1,105 @@
+##
+## marineinfo-collection.ttl
+##
+## A representative RDF/Turtle document modelled on the VLIZ/IMIS data format
+## used by MarineInfo.org (https://marineinfo.org/id/collection/619).
+##
+## Predicates used reflect the real IMIS vocabulary mix:
+##   Dublin Core Terms  (dct:)   — title, description, creator, subject, etc.
+##   SKOS               (skos:)  — Collection type, member links
+##   FOAF               (foaf:)  — person / organisation descriptions
+##   Schema.org         (schema:) — url
+##
+## This file is the data source for the template demo in
+## public/templates/marineinfo-collection.html
+##
+
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct:    <http://purl.org/dc/terms/> .
+@prefix foaf:   <http://xmlns.com/foaf/0.1/> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix schema: <https://schema.org/> .
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The collection itself
+# ─────────────────────────────────────────────────────────────────────────────
+
+<https://marineinfo.org/id/collection/619>
+    a skos:Collection ;
+
+    # Human-readable metadata
+    dct:title
+        "North Sea Marine Biodiversity Monitoring Collection" ;
+    dct:description
+        "A curated collection of marine biodiversity datasets from the North Sea region. "
+        "Covers species occurrence records, environmental monitoring data, benthic "
+        "community surveys, and oceanographic time-series compiled by research institutes "
+        "across the greater North Sea area. All datasets are openly licensed and follow "
+        "the Darwin Core and EML standards." ;
+
+    # Provenance
+    dct:created   "2018-03-15"^^xsd:date ;
+    dct:modified  "2024-06-01"^^xsd:date ;
+
+    # Attribution — URIs; names are on the person / org nodes below
+    dct:creator     <https://marineinfo.org/id/person/35683> ;
+    dct:contributor <https://marineinfo.org/id/person/40112> ;
+    dct:contributor <https://marineinfo.org/id/person/18934> ;
+    dct:publisher   <https://marineinfo.org/id/institute/36> ;
+
+    # Rights & access
+    dct:rights   "Creative Commons Attribution 4.0 International (CC BY 4.0)" ;
+    dct:language "en" ;
+
+    # Thematic keywords  ← multiple values = list in RDF
+    dct:subject  "marine biodiversity" ;
+    dct:subject  "North Sea" ;
+    dct:subject  "species occurrence" ;
+    dct:subject  "environmental monitoring" ;
+    dct:subject  "benthic ecology" ;
+    dct:subject  "oceanography" ;
+
+    # Spatial coverage
+    dct:spatial  "North Sea (IHO Sea Area)" ;
+
+    # Collection members  ← multiple values = list in RDF
+    skos:member  <https://marineinfo.org/id/dataset/4507> ;
+    skos:member  <https://marineinfo.org/id/dataset/6201> ;
+    skos:member  <https://marineinfo.org/id/dataset/6983> ;
+    skos:member  <https://marineinfo.org/id/dataset/7104> ;
+    skos:member  <https://marineinfo.org/id/dataset/7892> ;
+
+    # Canonical URL
+    schema:url   <https://marineinfo.org/id/collection/619> .
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# People
+# ─────────────────────────────────────────────────────────────────────────────
+
+<https://marineinfo.org/id/person/35683>
+    a foaf:Person ;
+    foaf:name  "Dr. Jan Mees" ;
+    foaf:mbox  <mailto:jan.mees@vliz.be> .
+
+<https://marineinfo.org/id/person/40112>
+    a foaf:Person ;
+    foaf:name  "Dr. Pieter Boets" ;
+    foaf:mbox  <mailto:pieter.boets@inbo.be> .
+
+<https://marineinfo.org/id/person/18934>
+    a foaf:Person ;
+    foaf:name  "Prof. Magda Vincx" ;
+    foaf:mbox  <mailto:magda.vincx@ugent.be> .
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Publisher organisation
+# ─────────────────────────────────────────────────────────────────────────────
+
+<https://marineinfo.org/id/institute/36>
+    a foaf:Organization ;
+    foaf:name   "Flanders Marine Institute (VLIZ)" ;
+    schema:url  <https://www.vliz.be/> .

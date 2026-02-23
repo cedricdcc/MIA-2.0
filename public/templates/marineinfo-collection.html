@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MarineInfo Collection Viewer – rdf-display template demo</title>
+
+  <!-- ===================================================================
+    PAGE CHROME STYLES
+    These style the page shell only (header, container, source-code blocks).
+    The collection card itself is styled entirely via #collection-triple-styles
+    below, which is injected into the rdf-display shadow root.
+  =================================================================== -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #f0f5fa;
+      color: #1a2b3c;
+    }
+
+    /* ---- Page header ---- */
+    .page-header {
+      background: linear-gradient(135deg, #083d6b 0%, #1a6fa8 100%);
+      color: #fff;
+      padding: 2rem 2rem 1.5rem;
+    }
+    .page-header h1 { margin: 0 0 .4rem; font-size: 1.5rem; }
+    .page-header p  { margin: 0; opacity: .8; font-size: .88rem; }
+    .page-header code {
+      background: rgba(255,255,255,.18);
+      padding: .1em .4em;
+      border-radius: 3px;
+      font-size: .85em;
+    }
+
+    /* ---- Main layout ---- */
+    .container {
+      max-width: 980px;
+      margin: 2rem auto;
+      padding: 0 1rem 4rem;
+    }
+
+    /* ---- Info box ---- */
+    .info-box {
+      background: #e8f4fd;
+      border-left: 4px solid #1a6fa8;
+      padding: .8rem 1.2rem;
+      border-radius: 0 6px 6px 0;
+      font-size: .85rem;
+      color: #1a3a5c;
+      margin-bottom: 1.5rem;
+      line-height: 1.55;
+    }
+    .info-box strong { color: #083d6b; }
+
+    /* ---- Source code display ---- */
+    details {
+      background: #fff;
+      border: 1px solid #d5e8f5;
+      border-radius: 6px;
+      margin-bottom: 1.5rem;
+    }
+    summary {
+      padding: .65rem 1rem;
+      font-size: .82rem;
+      font-weight: 600;
+      color: #1a6fa8;
+      cursor: pointer;
+      user-select: none;
+    }
+    details pre {
+      margin: 0;
+      padding: 1rem;
+      border-top: 1px solid #e0edf8;
+      font-size: .76rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      background: #f7fbff;
+      color: #1a2b3c;
+    }
+  </style>
+
+  <!-- ===================================================================
+    TEMPLATE STYLES  (id="collection-triple-styles")
+    ───────────────────────────────────────────────────────────────────────
+    These are injected into the rdf-display SHADOW ROOT via the
+    template-styles="collection-triple-styles" attribute.  They must live
+    here (not in the page <style>) because the cloned template content is
+    rendered inside shadow DOM, which isolates it from page CSS.
+
+    HOW IT WORKS
+    ════════════
+    For every RDF triple, rdf-display clones the <template id="collection-triple">
+    and replaces:
+      {predicate-class}  →  CSS-safe name of the predicate
+                             e.g. dct:title → "title"
+                                  skos:member → "member"
+                                  dct:subject → "subject"
+      {object-is-uri}    →  "true" or "false"
+      {predicate-short}  →  last fragment / path segment of predicate URI
+      {object}           →  full object value
+      {object-short}     →  last fragment / path segment of object URI
+      {subject}          →  full subject URI
+      {predicate}        →  full predicate URI
+
+    The resulting DOM inside .rdf-template-host is a flat sequence of:
+      <div class="triple title" …>
+      <div class="triple description" …>
+      <div class="triple subject" …>    ← one per keyword  (list!)
+      <div class="triple subject" …>
+      …
+      <div class="triple member" …>     ← one per dataset   (list!)
+      <div class="triple member" …>
+      …
+
+    CSS flex-wrap + order numbers re-sequence and lay out these siblings
+    into a visually structured card without any JavaScript.
+  =================================================================== -->
+  <style id="collection-triple-styles">
+    /* --- Host layout ------------------------------------------------------- */
+    .rdf-template-host {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      padding: 1.75rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.09);
+      align-items: flex-start;
+    }
+
+    /* --- Default: hide triples we haven't explicitly styled --------------- */
+    .triple { display: none; }
+
+    /* ===== rdf:type → small collection badge (order 1) =================== */
+    .triple.type {
+      display: inline-block;
+      order: 1;
+      background: #083d6b;
+      color: #fff;
+      font-size: .68rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: .22em .75em;
+      border-radius: 3px;
+      width: 100%;
+    }
+    /* Hide the placeholder spans – use a CSS ::before for fixed label text */
+    .triple.type .label,
+    .triple.type .value-text,
+    .triple.type .value-link { display: none; }
+    .triple.type::before { content: "📚 skos:Collection"; }
+
+    /* ===== dct:title → large heading (order 2) ========================== */
+    .triple.title {
+      display: block;
+      order: 2;
+      width: 100%;
+      font-size: 1.65rem;
+      font-weight: 700;
+      color: #083d6b;
+      line-height: 1.2;
+      padding: .5rem 0 .3rem;
+    }
+    .triple.title .label,
+    .triple.title .value-link { display: none; }
+
+    /* ===== dct:description → prose paragraph (order 3) ================== */
+    .triple.description {
+      display: block;
+      order: 3;
+      width: 100%;
+      color: #3a4a5c;
+      line-height: 1.65;
+      font-size: .92rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #e0edf8;
+    }
+    .triple.description .label,
+    .triple.description .value-link { display: none; }
+
+    /* ===== dct:subject → keyword chip (order 5, auto-width → wraps) ===== */
+    .triple.subject {
+      display: inline-flex;
+      align-items: center;
+      order: 5;
+      background: #e3f2fd;
+      color: #0d47a1;
+      border: 1px solid #90caf9;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .3em .85em;
+      border-radius: 14px;
+    }
+    .triple.subject .label,
+    .triple.subject .value-link { display: none; }
+
+    /* ===== dct:spatial → location chip (order 5) ========================= */
+    .triple.spatial {
+      display: inline-flex;
+      align-items: center;
+      order: 5;
+      background: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #a5d6a7;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .3em .85em;
+      border-radius: 14px;
+    }
+    .triple.spatial::before { content: "📍 "; }
+    .triple.spatial .label,
+    .triple.spatial .value-link { display: none; }
+
+    /* ===== dct:language → language badge (order 5) ======================= */
+    .triple.language {
+      display: inline-flex;
+      align-items: center;
+      order: 5;
+      background: #fce4ec;
+      color: #880e4f;
+      border: 1px solid #f48fb1;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .3em .85em;
+      border-radius: 14px;
+    }
+    .triple.language::before { content: "🌐 "; }
+    .triple.language .label,
+    .triple.language .value-link { display: none; }
+
+    /* ===== skos:member → dataset cards (order 10, fixed width = grid) ==== */
+    /*
+      All .member divs are flex siblings, so they flow side-by-side and wrap
+      naturally into a multi-column card grid — no extra wrapper needed.
+      This is the "list" pattern in RDF: multiple triples with the same
+      predicate become a CSS grid simply by sharing the same flex order and
+      a fixed width.
+    */
+    .triple.member {
+      display: flex;
+      flex-direction: column;
+      order: 10;
+      width: calc(33.33% - .35rem);
+      min-width: 180px;
+      background: #f0f7ff;
+      border: 1px solid #c2d8f0;
+      border-radius: 6px;
+      padding: .8rem 1rem;
+      transition: box-shadow .15s, border-color .15s;
+      text-decoration: none;
+    }
+    .triple.member:hover {
+      box-shadow: 0 4px 12px rgba(8,61,107,.14);
+      border-color: #1a6fa8;
+    }
+    .triple.member::before {
+      content: "Dataset";
+      font-size: .65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      color: #1a6fa8;
+      margin-bottom: .35rem;
+    }
+    .triple.member .label { display: none; }
+    /* literal values (shouldn't occur for skos:member, but just in case) */
+    .triple.member[data-is-uri="false"] .value-link { display: none; }
+    .triple.member[data-is-uri="false"] .value-text { display: block; }
+    /* URI values */
+    .triple.member[data-is-uri="true"] .value-text { display: none; }
+    .triple.member .value-link {
+      font-weight: 600;
+      color: #083d6b;
+      text-decoration: none;
+      font-size: .84rem;
+      word-break: break-all;
+    }
+    .triple.member .value-link:hover { text-decoration: underline; }
+
+    /* A "section divider" gap before members */
+    .triple.member:first-of-type { margin-top: .25rem; }
+
+    /* ===== dct:creator / dct:contributor → person badge (order 7) ======= */
+    .triple.creator,
+    .triple.contributor {
+      display: inline-flex;
+      align-items: center;
+      order: 7;
+      background: #f3e5f5;
+      color: #4a148c;
+      border: 1px solid #ce93d8;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .35em .85em;
+      border-radius: 16px;
+    }
+    .triple.creator::before  { content: "👤 "; }
+    .triple.contributor::before { content: "👤 "; }
+    .triple.creator .label,
+    .triple.contributor .label { display: none; }
+    /* Show URI as link (short form) – literal fallback */
+    .triple.creator[data-is-uri="false"] .value-link { display: none; }
+    .triple.contributor[data-is-uri="false"] .value-link { display: none; }
+    .triple.creator[data-is-uri="true"] .value-text { display: none; }
+    .triple.contributor[data-is-uri="true"] .value-text { display: none; }
+
+    /* ===== dct:publisher → organisation badge (order 7) ================== */
+    .triple.publisher {
+      display: inline-flex;
+      align-items: center;
+      order: 7;
+      background: #fff3e0;
+      color: #e65100;
+      border: 1px solid #ffcc80;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: .35em .85em;
+      border-radius: 16px;
+    }
+    .triple.publisher::before { content: "🏛️ "; }
+    .triple.publisher .label { display: none; }
+    .triple.publisher[data-is-uri="false"] .value-link { display: none; }
+    .triple.publisher[data-is-uri="true"] .value-text { display: none; }
+
+    /* ===== dct:rights → rights notice (order 8, full width) ============== */
+    .triple.rights {
+      display: flex;
+      align-items: center;
+      order: 8;
+      width: 100%;
+      gap: .4rem;
+      font-size: .76rem;
+      color: #555;
+      padding-top: .35rem;
+    }
+    .triple.rights::before { content: "©"; font-size: 1em; }
+    .triple.rights .label { display: none; }
+    .triple.rights .value-link { display: none; }
+
+    /* ===== dct:created / dct:modified → date row (order 8) =============== */
+    .triple.created,
+    .triple.modified {
+      display: flex;
+      align-items: center;
+      order: 8;
+      gap: .3rem;
+      font-size: .76rem;
+      color: #666;
+    }
+    .triple.created .label,
+    .triple.modified .label {
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    .triple.created .label::after  { content: ":"; }
+    .triple.modified .label::after { content: ":"; }
+    .triple.created .value-link,
+    .triple.modified .value-link { display: none; }
+
+    /* ===== schema:url → "View on MarineInfo" button (order 20) =========== */
+    .triple.url {
+      display: inline-flex;
+      order: 20;
+      width: 100%;
+      margin-top: .5rem;
+      padding-top: .5rem;
+      border-top: 1px solid #e0edf8;
+    }
+    .triple.url .label { display: none; }
+    .triple.url[data-is-uri="true"] .value-text { display: none; }
+    .triple.url[data-is-uri="false"] .value-link { display: none; }
+    .triple.url .value-link {
+      display: inline-block;
+      background: #1a6fa8;
+      color: #fff;
+      padding: .5em 1.3em;
+      border-radius: 4px;
+      text-decoration: none;
+      font-size: .84rem;
+      font-weight: 600;
+    }
+    .triple.url .value-link::before { content: "View on MarineInfo → "; }
+    .triple.url .value-link:hover { background: #083d6b; }
+    /* The {object-short} text ("619") is not useful; ::before provides the label */
+    .triple.url .value-link span { display: none; }
+  </style>
+
+  <!-- ===================================================================
+    THE TEMPLATE
+    ───────────────────────────────────────────────────────────────────────
+    One <div class="triple {predicate-class}"> is created per triple.
+    Three inner spans cover the three rendering cases:
+      .label      – the shortened predicate name
+      .value-text – the raw object string  (for literals)
+      .value-link – an <a> link             (for URIs)
+
+    CSS in #collection-triple-styles hides/shows these spans per predicate
+    class and per data-is-uri value.
+  =================================================================== -->
+  <template id="collection-triple">
+    <div class="triple {predicate-class}"
+         data-predicate="{predicate}"
+         data-is-uri="{object-is-uri}">
+      <span class="label">{predicate-short}</span>
+      <span class="value-text">{object}</span>
+      <a class="value-link"
+         href="{object}"
+         target="_blank"
+         rel="noopener noreferrer">{object-short}</a>
+    </div>
+  </template>
+
+</head>
+<body>
+
+  <!-- Page header -->
+  <div class="page-header">
+    <h1>🌊 MarineInfo Collection Viewer</h1>
+    <p>
+      Demo of <code>&lt;rdf-display template-id="…" template-styles="…"&gt;</code>
+      rendering IMIS/VLIZ collection RDF — predicate classes drive the visual layout
+      via pure CSS, with no JavaScript post-processing.
+    </p>
+  </div>
+
+  <div class="container">
+
+    <div class="info-box">
+      <strong>How this page works:</strong>
+      The <code>&lt;rdf-adapter&gt;</code> fetches
+      <code>../rdf-data/marineinfo-collection.ttl</code>, filters triples to the
+      collection subject, and fires an <code>rdf-loaded</code> event.
+      <code>&lt;rdf-display&gt;</code> clones <code>#collection-triple</code>
+      once per triple, filling in <code>{predicate-class}</code>,
+      <code>{object-is-uri}</code>, <code>{object}</code>, etc.
+      The injected CSS in <code>#collection-triple-styles</code> assigns a flex
+      <code>order</code> and visual style to each predicate class — keyword chips,
+      dataset cards, person badges — using only CSS selectors and the class names
+      derived from predicate URIs.
+    </div>
+
+    <!-- ==================================================================
+      The collection card
+    ================================================================== -->
+    <rdf-display
+      id="collection-display"
+      template-id="collection-triple"
+      template-styles="collection-triple-styles"
+    >
+      <rdf-adapter
+        src="../rdf-data/marineinfo-collection.ttl"
+        subject="https://marineinfo.org/id/collection/619"
+      ></rdf-adapter>
+    </rdf-display>
+
+    <!-- ==================================================================
+      Source code reference
+    ================================================================== -->
+    <details>
+      <summary>📄 View the Turtle source (marineinfo-collection.ttl)</summary>
+      <pre>
+&lt;https://marineinfo.org/id/collection/619&gt;
+    a skos:Collection ;
+    dct:title   "North Sea Marine Biodiversity Monitoring Collection" ;
+    dct:description  "A curated collection of marine biodiversity ..." ;
+    dct:created  "2018-03-15"^^xsd:date ;
+    dct:modified "2024-06-01"^^xsd:date ;
+    dct:creator     &lt;https://marineinfo.org/id/person/35683&gt; ;
+    dct:contributor &lt;https://marineinfo.org/id/person/40112&gt; ;
+    dct:contributor &lt;https://marineinfo.org/id/person/18934&gt; ;   ← list
+    dct:publisher   &lt;https://marineinfo.org/id/institute/36&gt; ;
+    dct:rights   "Creative Commons Attribution 4.0 ..." ;
+    dct:language "en" ;
+    dct:subject  "marine biodiversity" ;
+    dct:subject  "North Sea" ;
+    dct:subject  "species occurrence" ;           ← list (keywords)
+    dct:subject  "environmental monitoring" ;
+    dct:subject  "benthic ecology" ;
+    dct:subject  "oceanography" ;
+    dct:spatial  "North Sea (IHO Sea Area)" ;
+    skos:member  &lt;https://marineinfo.org/id/dataset/4507&gt; ;
+    skos:member  &lt;https://marineinfo.org/id/dataset/6201&gt; ;    ← list (datasets)
+    skos:member  &lt;https://marineinfo.org/id/dataset/6983&gt; ;
+    skos:member  &lt;https://marineinfo.org/id/dataset/7104&gt; ;
+    skos:member  &lt;https://marineinfo.org/id/dataset/7892&gt; ;
+    schema:url   &lt;https://marineinfo.org/id/collection/619&gt; .</pre>
+    </details>
+
+    <details>
+      <summary>🏷️ View the HTML template markup</summary>
+      <pre>
+&lt;!-- STEP 1: styles for the shadow DOM (needed because template content
+     is rendered inside rdf-display's shadow root) --&gt;
+&lt;style id="collection-triple-styles"&gt;
+  .rdf-template-host { display: flex; flex-wrap: wrap; gap: .5rem; … }
+  .triple            { display: none; }          /* hide unknown predicates */
+  .triple.title      { order: 2; width: 100%; font-size: 1.65rem; … }
+  .triple.subject    { order: 5; background: #e3f2fd; border-radius: 14px; … }
+  .triple.member     { order: 10; width: calc(33.33% - .35rem); … }
+  /* … one rule per predicate class … */
+&lt;/style&gt;
+
+&lt;!-- STEP 2: the per-triple template --&gt;
+&lt;template id="collection-triple"&gt;
+  &lt;div class="triple {predicate-class}"
+       data-predicate="{predicate}"
+       data-is-uri="{object-is-uri}"&gt;
+    &lt;span class="label"&gt;{predicate-short}&lt;/span&gt;
+    &lt;span class="value-text"&gt;{object}&lt;/span&gt;
+    &lt;a class="value-link" href="{object}" target="_blank"&gt;{object-short}&lt;/a&gt;
+  &lt;/div&gt;
+&lt;/template&gt;
+
+&lt;!-- STEP 3: use rdf-display with both attributes --&gt;
+&lt;rdf-display
+  template-id="collection-triple"
+  template-styles="collection-triple-styles"
+&gt;
+  &lt;rdf-adapter
+    src="../rdf-data/marineinfo-collection.ttl"
+    subject="https://marineinfo.org/id/collection/619"
+  &gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    </details>
+
+  </div><!-- /.container -->
+
+  <script type="module" src="/src/components/rdf-adapter.js"></script>
+  <script type="module" src="/src/components/rdf-display.js"></script>
+</body>
+</html>
