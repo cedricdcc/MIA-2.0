@@ -572,6 +572,36 @@
     /* ── Widget blocks type badge ─────────────────────────────────────── */
     .type-badge.image { background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; }
 
+    /* ── Path builder ────────────────────────────────────────────────────── */
+    .path-builder-container { display: flex; flex-direction: column; gap: .15rem; margin-top: .2rem; width: 100%; }
+    .path-step-row { display: flex; align-items: center; gap: .28rem; }
+    .path-step-row > .path-step-arrow { font-size: .6rem; color: #5a8ab0; flex-shrink: 0; }
+    .path-step-select {
+      font-size: .62rem; padding: .1rem .22rem; flex: 1; min-width: 0;
+      background: #1a2535; color: #c9d8ea; border: 1px solid #2a5a8c; border-radius: 3px;
+    }
+    .path-step-remove {
+      background: none; border: none; color: #c0392b; cursor: pointer;
+      font-size: .72rem; line-height: 1; padding: 0 .12rem; flex-shrink: 0;
+    }
+    .path-add-step {
+      font-size: .62rem; padding: .12rem .4rem; align-self: flex-start; margin-top: .12rem;
+      background: #1a3a5c; border: 1px solid #2a5a8c; color: #7aaad0; border-radius: 3px; cursor: pointer;
+    }
+    .path-add-step:hover { background: #2a4a6c; }
+    .path-add-step:disabled { opacity: .45; cursor: not-allowed; }
+
+    /* ── Limit / contains filter inputs ─────────────────────────────────── */
+    .block-filter-limit {
+      width: 3.5rem; font-size: .62rem; padding: .1rem .22rem;
+      background: #1a2535; color: #c9d8ea; border: 1px solid #2a4a6a; border-radius: 3px;
+    }
+    .block-filter-contains {
+      font-size: .62rem; padding: .1rem .22rem; width: 80px;
+      background: #1a2535; color: #c9d8ea; border: 1px solid #2a4a6a; border-radius: 3px;
+    }
+    .block-filter-contains::placeholder, .block-filter-limit::placeholder { color: #445; }
+
     /* ── Chat panel ──────────────────────────────────────────────────────── */
     .chat-panel {
       position: fixed; right: 0; top: 0; bottom: 0;
@@ -851,6 +881,8 @@
 
     <div class="editor-toolbar">
       <button class="toolbar-btn" id="reset-btn">↺ Reset to starter</button>
+      <button class="toolbar-btn" id="undo-html-btn" title="Undo last programmatic HTML change">↩ HTML</button>
+      <button class="toolbar-btn" id="undo-css-btn" title="Undo last programmatic CSS change">↩ CSS</button>
       <button class="toolbar-btn primary" id="preview-btn">▶ Update preview</button>
       <button class="toolbar-btn success" id="download-btn" style="margin-left:auto">⬇ Download</button>
     </div>
@@ -1106,15 +1138,17 @@ const BLOCK_TYPES = {
   'slider-widget': { label: 'Slider', icon: '⇔',  suggestsFor: ['integer','decimal'], isWidget: true },
 };
 
-function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '', pathStr = '', indent = '') {
+function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '', pathStr = '', indent = '', filterContains = '', filterLimit = '') {
   // Use data-rdf-path when a multi-step path is given, otherwise data-rdf-predicate
   const usePathMode = pathStr.trim().split(/\s+/).filter(Boolean).length > 1;
   const filterAttrs = [
     usePathMode
       ? (pathStr ? `\n${indent}     data-rdf-path="${escHtml(pathStr.trim())}"` : '')
       : (predicateUri ? `\n${indent}     data-rdf-predicate="${escHtml(predicateUri)}"` : ''),
-    filterLang ? ` data-rdf-filter-lang="${escHtml(filterLang)}"` : '',
-    filterType ? ` data-rdf-filter-type="${escHtml(filterType)}"` : '',
+    filterLang     ? ` data-rdf-filter-lang="${escHtml(filterLang)}"` : '',
+    filterType     ? ` data-rdf-filter-type="${escHtml(filterType)}"` : '',
+    filterContains ? ` data-rdf-filter-contains="${escHtml(filterContains)}"` : '',
+    filterLimit    ? ` data-rdf-limit="${escHtml(filterLimit)}"` : '',
   ].join('');
 
   switch (blockType) {
@@ -1242,14 +1276,123 @@ function getSubScopePredicates(parentPredUri) {
 }
 
 /**
- * Returns the full predicate/path and filter values for a canvas block.
+ * Returns predicates available after following completedSteps from the current scope subjects.
+ * Used to populate each cascading path-step select in the path builder UI.
+ * @param {string[]} completedSteps – predicate URIs already committed (0 or more)
+ * @returns {Map<string, number>} predicate URI → count
+ */
+function getPredicatesAfterPath(completedSteps) {
+  let subjects = new Set(
+    _allTriples
+      .filter(t => !_selectedSubject || t.subject === _selectedSubject)
+      .map(t => t.subject)
+  );
+  for (const predUri of completedSteps) {
+    const nextSubjects = new Set();
+    for (const t of _allTriples) {
+      if (!subjects.has(t.subject) || t.predicate !== predUri) continue;
+      if (isUri(t.object) || isBlankNode(t.object)) nextSubjects.add(t.object);
+    }
+    subjects = nextSubjects;
+    if (!subjects.size) return new Map();
+  }
+  const preds = new Map();
+  for (const t of _allTriples) {
+    if (!subjects.has(t.subject)) continue;
+    preds.set(t.predicate, (preds.get(t.predicate) ?? 0) + 1);
+  }
+  return preds;
+}
+
+/**
+ * (Re)builds the cascading path-step selects inside block.querySelector('.path-builder-container').
+ * block.dataset.pathSteps stores a JSON array of additional predicate URIs (after the first step).
+ */
+function buildPathBuilderUI(block) {
+  const container = block.querySelector('.path-builder-container');
+  if (!container) return;
+
+  const firstPred = block.querySelector('.block-predicate-sel')?.value ?? '';
+  const steps = JSON.parse(block.dataset.pathSteps || '[]');
+
+  container.innerHTML = '';
+
+  for (let i = 0; i < steps.length; i++) {
+    const prevChain = [firstPred, ...steps.slice(0, i)].filter(Boolean);
+    const availPreds = getPredicatesAfterPath(prevChain);
+
+    const row = document.createElement('div');
+    row.className = 'path-step-row';
+
+    const arrow = document.createElement('span');
+    arrow.className = 'path-step-arrow';
+    arrow.textContent = '→';
+    row.appendChild(arrow);
+
+    const sel = document.createElement('select');
+    sel.className = 'path-step-select';
+    sel.title = 'Predicate for path step ' + (i + 2);
+    sel.innerHTML = `<option value="">(choose predicate)</option>` +
+      [...availPreds.keys()].map(uri =>
+        `<option value="${escHtml(uri)}"${steps[i] === uri ? ' selected' : ''}>${escHtml(shortenUri(uri))} (${availPreds.get(uri)})</option>`
+      ).join('');
+    const captureI = i;
+    sel.addEventListener('change', () => {
+      steps[captureI] = sel.value;
+      steps.splice(captureI + 1); // clear subsequent steps
+      block.dataset.pathSteps = JSON.stringify(steps);
+      buildPathBuilderUI(block);
+      scheduleBlockPreview();
+    });
+    row.appendChild(sel);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'path-step-remove';
+    removeBtn.title = 'Remove this path step';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+      steps.splice(captureI, 1);
+      block.dataset.pathSteps = JSON.stringify(steps);
+      buildPathBuilderUI(block);
+      scheduleBlockPreview();
+    });
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+  }
+
+  // Show "+ Path step" button; disable when no first predicate is selected or when the path has no further reachable predicates
+  const addBtn = document.createElement('button');
+  addBtn.className = 'path-add-step';
+  addBtn.textContent = '+ Path step';
+  const chain = [firstPred, ...steps].filter(Boolean);
+  const nextPreds = chain.length ? getPredicatesAfterPath(chain) : new Map();
+  addBtn.disabled = !chain.length || nextPreds.size === 0;
+  addBtn.title = !chain.length ? 'Select a predicate first' : (nextPreds.size === 0 ? 'No further predicates reachable' : 'Add another hop to the property path');
+  addBtn.addEventListener('click', () => {
+    steps.push('');
+    block.dataset.pathSteps = JSON.stringify(steps);
+    buildPathBuilderUI(block);
+    container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+  container.appendChild(addBtn);
+}
+
+/**
+ * Returns the full predicate/path and all filter values for a canvas block.
+ * The path combines the first-step predicate select with any extra path steps
+ * stored in block.dataset.pathSteps (JSON array set by buildPathBuilderUI).
  */
 function getBlockAttrs(block) {
+  const predUri    = block.querySelector('.block-predicate-sel')?.value ?? '';
+  const extraSteps = JSON.parse(block.dataset.pathSteps || '[]').filter(Boolean);
+  const pathStr    = [predUri, ...extraSteps].join(' ').trim();
   return {
-    predUri:  block.querySelector('.block-predicate-sel')?.value ?? '',
-    fLang:    block.querySelector('.block-filter-lang')?.value.trim() ?? '',
-    fType:    block.querySelector('.block-filter-type')?.value ?? '',
-    pathStr:  block.querySelector('.block-path-input')?.value.trim() ?? '',
+    predUri,
+    fLang:     block.querySelector('.block-filter-lang')?.value.trim()     ?? '',
+    fType:     block.querySelector('.block-filter-type')?.value             ?? '',
+    fContains: block.querySelector('.block-filter-contains')?.value.trim() ?? '',
+    fLimit:    block.querySelector('.block-filter-limit')?.value.trim()     ?? '',
+    pathStr,
   };
 }
 
@@ -1259,7 +1402,7 @@ function getBlockAttrs(block) {
  */
 function getBlockCode(block, commentPrefix = '') {
   const blockType = block.dataset.blockType;
-  const { predUri, fLang, fType, pathStr } = getBlockAttrs(block);
+  const { predUri, fLang, fType, fContains, fLimit, pathStr } = getBlockAttrs(block);
 
   if (blockType === 'custom') {
     const customHtml = block.querySelector('.custom-block-html')?.value.trim() ?? '';
@@ -1276,8 +1419,10 @@ function getBlockCode(block, commentPrefix = '') {
     const pathAttr    = usePathMode
       ? (pathStr ? ` data-rdf-path="${escHtml(pathStr.trim())}"` : '')
       : (predUri  ? ` data-rdf-predicate="${escHtml(predUri)}"` : '');
-    const langAttr = fLang ? ` data-rdf-filter-lang="${escHtml(fLang)}"` : '';
-    const typeAttr = fType ? ` data-rdf-filter-type="${escHtml(fType)}"` : '';
+    const langAttr     = fLang     ? ` data-rdf-filter-lang="${escHtml(fLang)}"` : '';
+    const typeAttr     = fType     ? ` data-rdf-filter-type="${escHtml(fType)}"` : '';
+    const contAttr     = fContains ? ` data-rdf-filter-contains="${escHtml(fContains)}"` : '';
+    const limitAttr    = fLimit    ? ` data-rdf-limit="${escHtml(fLimit)}"` : '';
 
     const subItems = [...block.querySelectorAll('.sub-block-item')];
     const innerHtmlParts = [];
@@ -1295,18 +1440,17 @@ function getBlockCode(block, commentPrefix = '') {
       ? '\n' + innerHtmlParts.join('\n') + '\n'
       : '\n  <!-- drag sub-blocks here or add via + Sub-block -->\n';
     return {
-      html: `<div class="block-section"${pathAttr}${langAttr}${typeAttr}>${innerHtml}</div>`,
+      html: `<div class="block-section"${pathAttr}${langAttr}${typeAttr}${contAttr}${limitAttr}>${innerHtml}</div>`,
       css:  `.block-section { display: flex; flex-direction: column; gap: .4rem; border: 2px solid #a8c8e8; border-radius: 8px; padding: .75rem; background: #f0f7ff; width: 100%; }\n${innerCssParts.join('\n')}`,
     };
   }
 
   if (BLOCK_TYPES[blockType]?.isWidget) {
-    const predUri  = block.querySelector('.block-predicate-sel')?.value ?? '';
-    const label    = block.querySelector('.widget-label-input')?.value.trim() ?? '';
+    const label = block.querySelector('.widget-label-input')?.value.trim() ?? '';
     return buildWidgetCode(blockType, predUri, label);
   }
 
-  return blockToHtmlCss(blockType, predUri, fLang, fType, pathStr);
+  return blockToHtmlCss(blockType, predUri, fLang, fType, pathStr, '', fContains, fLimit);
 }
 
 function fillPlaceholders(html, triple) {
@@ -1483,6 +1627,17 @@ function resolveAnnotatedElements(container, scopeTriples, allTriples) {
     if (filterLang) matches = matches.filter(t => (t.objectLang ?? '') === filterLang);
     if (filterType) matches = matches.filter(t => detectValueType(t.object ?? '', t.objectDatatype) === filterType);
 
+    const filterContains = el.getAttribute('data-rdf-filter-contains') || null;
+    const limitStr = el.getAttribute('data-rdf-limit') || null;
+    el.removeAttribute('data-rdf-filter-contains');
+    el.removeAttribute('data-rdf-limit');
+    if (filterContains) {
+      try { const re = new RegExp(filterContains, 'i'); matches = matches.filter(t => re.test(t.object ?? '')); }
+      catch (_) { matches = matches.filter(t => (t.object ?? '').includes(filterContains)); }
+    }
+    const limitN = limitStr !== null ? parseInt(limitStr, 10) : NaN;
+    if (!isNaN(limitN) && limitN > 0) matches = matches.slice(0, limitN);
+
     if (matches.length === 0) { el.remove(); continue; }
 
     const base = el.cloneNode(true);
@@ -1499,7 +1654,7 @@ function resolveAnnotatedElements(container, scopeTriples, allTriples) {
 
 function resolveInner(el, triple, allTriples) {
   const objUri = triple.object ?? '';
-  if (isUri(objUri)) {
+  if (isUri(objUri) || isBlankNode(objUri)) {
     const innerTriples = allTriples.filter(t => t.subject === objUri);
     resolveAnnotatedElements(el, innerTriples, allTriples);
   } else {
@@ -1515,7 +1670,7 @@ function resolvePropertyPath(allTriples, startSubjects, pathSteps) {
     const pred = pathSteps[i];
     const matches = allTriples.filter(t => subjects.has(t.subject) && t.predicate === pred);
     if (i === pathSteps.length - 1) return matches;
-    subjects = new Set(matches.map(t => t.object).filter(o => isUri(o)));
+    subjects = new Set(matches.map(t => t.object).filter(o => isUri(o) || isBlankNode(o)));
     if (!subjects.size) return [];
   }
   return [];
@@ -1523,6 +1678,28 @@ function resolvePropertyPath(allTriples, startSubjects, pathSteps) {
 
 function escHtml(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function isBlankNode(v) { return typeof v === 'string' && v.startsWith('_:'); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Undo stacks (for programmatic edits; browser built-in undo covers manual typing)
+// ─────────────────────────────────────────────────────────────────────────────
+const MAX_UNDO = 50;
+let _htmlUndoStack = [];
+let _cssUndoStack  = [];
+
+/** Set HTML editor content with undo-push. */
+function setHtmlContent(val) {
+  _htmlUndoStack.push(htmlTA.value);
+  if (_htmlUndoStack.length > MAX_UNDO) _htmlUndoStack.shift();
+  htmlTA.value = val;
+}
+/** Set CSS editor content with undo-push. */
+function setCssContent(val) {
+  _cssUndoStack.push(cssTA.value);
+  if (_cssUndoStack.length > MAX_UNDO) _cssUndoStack.shift();
+  cssTA.value = val;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1767,6 +1944,8 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
     }).join('');
   }
 
+  block.dataset.pathSteps = '[]'; // JSON array of extra path-step predicate URIs
+
   block.innerHTML = `
     <div class="canvas-block-main">
       <span class="block-drag-handle" title="Drag to reorder">⠿</span>
@@ -1778,7 +1957,7 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
       </select>`}
       ${isWidgetBlock ? `<label style="font-size:.6rem;color:#7aaad0;margin-left:.3rem">Label:</label>
       <input class="widget-label-input" type="text" placeholder="Search…" style="font-size:.68rem;width:80px;background:#1a2535;border:1px solid #3a5a7c;border-radius:3px;color:#c9d8ea;padding:.12rem .3rem" />` : ''}
-      ${(!isCustomBlock && !isWidgetBlock) ? `<button class="block-filter-toggle" title="Add language / type / path filter">⚙</button>` : ''}
+      ${(!isCustomBlock && !isWidgetBlock) ? `<button class="block-filter-toggle" title="Add language / type / contains / limit filters and path steps">⚙</button>` : ''}
       <button class="block-delete-btn" title="Remove block">✕</button>
     </div>
     ${(!isCustomBlock && !isWidgetBlock) ? `<div class="block-filter-row" style="display:none">
@@ -1787,9 +1966,12 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
              value="${escHtml(filterLang)}" style="width:4.5rem" />
       <label>Type:</label>
       <select class="block-filter-sel block-filter-type">${typeOpts}</select>
-      <label style="margin-left:.5rem">Path:</label>
-      <input class="block-path-input" placeholder="pred1URI pred2URI …" title="Multi-hop property path (overrides predicate dropdown)" style="flex:1;min-width:140px" />
-      <span class="block-filter-hint">→ filters / traverses graph for this block</span>
+      <label>Contains:</label>
+      <input class="block-filter-contains" placeholder="regex…" title="Case-insensitive regex (or substring) to filter object values" />
+      <label>Limit:</label>
+      <input class="block-filter-limit" type="number" min="1" placeholder="all" title="Limit to N results (1 = single element)" />
+      <div class="path-builder-container"></div>
+      <span class="block-filter-hint">→ filters &amp; path steps apply to this block</span>
     </div>` : ''}
     ${isSectionBlock ? `<div class="section-sub-canvas">
       <div class="sub-block-list"></div>
@@ -1825,11 +2007,17 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
     block.querySelector('.block-predicate-sel').addEventListener('change', e => {
       // For sections, refresh sub-scope predicates when outer predicate changes
       if (isSectionBlock) refreshSectionSubScope(block, e.target.value);
+      // Rebuild path builder UI (available steps depend on first-step predicate)
+      block.dataset.pathSteps = '[]';
+      buildPathBuilderUI(block);
       scheduleBlockPreview();
     });
-    block.querySelector('.block-filter-lang').addEventListener('input',  scheduleBlockPreview);
-    block.querySelector('.block-filter-type').addEventListener('change', scheduleBlockPreview);
-    block.querySelector('.block-path-input').addEventListener('input',   scheduleBlockPreview);
+    block.querySelector('.block-filter-lang').addEventListener('input',     scheduleBlockPreview);
+    block.querySelector('.block-filter-type').addEventListener('change',    scheduleBlockPreview);
+    block.querySelector('.block-filter-contains').addEventListener('input', scheduleBlockPreview);
+    block.querySelector('.block-filter-limit').addEventListener('input',    scheduleBlockPreview);
+    // Build initial path UI (populate "add step" button availability)
+    buildPathBuilderUI(block);
   } else if (isCustomBlock) {
     // Custom block: live preview on textarea changes
     block.querySelector('.custom-block-html').addEventListener('input', scheduleBlockPreview);
@@ -2042,10 +2230,10 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
     if (css)  { cssParts.push(`/* ── ${BLOCK_TYPES[blockType]?.label ?? blockType} ── */`); cssParts.push(css); cssParts.push(''); }
   }
 
-  htmlTA.value = (_selectedSubject
+  setHtmlContent((_selectedSubject
     ? `<!-- Block-style template for subject: ${escHtml(_selectedSubject)} -->\n`
-    : '<!-- Block-style template (data-rdf-predicate / data-rdf-path filtering) -->\n') + htmlParts.join('\n');
-  cssTA.value  = cssParts.join('\n');
+    : '<!-- Block-style template (data-rdf-predicate / data-rdf-path filtering) -->\n') + htmlParts.join('\n'));
+  setCssContent(cssParts.join('\n'));
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
   document.getElementById('block-status').textContent = `✅ Code generated from ${blocks.length} block${blocks.length !== 1 ? 's' : ''}.`;
@@ -2118,9 +2306,19 @@ urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); })
 // ─────────────────────────────────────────────────────────────────────────────
 document.getElementById('preview-btn').addEventListener('click', updatePreview);
 document.getElementById('reset-btn').addEventListener('click', () => {
-  htmlTA.value = DEFAULT_HTML;
-  cssTA.value  = DEFAULT_CSS;
+  setHtmlContent(DEFAULT_HTML);
+  setCssContent(DEFAULT_CSS);
   updatePreview();
+});
+document.getElementById('undo-html-btn').addEventListener('click', () => {
+  if (!_htmlUndoStack.length) return;
+  htmlTA.value = _htmlUndoStack.pop();
+  schedulePreview();
+});
+document.getElementById('undo-css-btn').addEventListener('click', () => {
+  if (!_cssUndoStack.length) return;
+  cssTA.value = _cssUndoStack.pop();
+  schedulePreview();
 });
 
 // Auto-update preview when editors change (debounced)
@@ -2399,10 +2597,10 @@ async function doAiSuggest() {
     }
 
     if (aiHtml) {
-      htmlTA.value = aiHtml;
+      setHtmlContent(aiHtml);
       document.querySelector('[data-tab="html-editor"]').click();
     }
-    if (aiCss) cssTA.value = aiCss;
+    if (aiCss) setCssContent(aiCss);
 
     updatePreview();
 
@@ -2630,12 +2828,33 @@ function buildChatSystemMessage() {
   ).join('\n');
   return `You are an expert RDF template designer helping the user edit an HTML/CSS display template for Linked Data.
 
-CURRENT HTML TEMPLATE:
+## rdf-display block-mode template system
+
+Templates are rendered ONCE per subject. Elements carry data attributes that act as SPARQL-like filters:
+
+| Attribute | Purpose |
+|-----------|---------|
+| data-rdf-predicate="<uri>" | Match triples with this predicate (1 match = rendered once; N = auto-repeated; 0 = removed) |
+| data-rdf-path="p1 p2 …"  | Multi-hop property path — space-separated predicate URIs traversed from current subjects |
+| data-rdf-filter-lang="en" | Keep only triples with this language tag |
+| data-rdf-filter-type="<t>" | Keep only triples of this type: uri|image|datetime|date|integer|decimal|boolean|string |
+| data-rdf-filter-contains="<pat>" | Case-insensitive regex (or substring) filter on the object value |
+| data-rdf-limit="<N>"      | Keep only the first N matches (data-rdf-limit="1" = single element) |
+
+**Blank nodes**: the traversal follows both URI and blank-node (\_:id) intermediate subjects, enabling templates to work with anonymous RDF structures.
+
+**Sub-blocks (nested cards)**: when an outer element matches a URI-valued predicate, inner elements with data-rdf-predicate are resolved relative to each matched object URI as the new subject scope — enabling card-within-card nesting.
+
+**Token placeholders**: {object}, {object-short}, {object-is-uri}, {object-type}, {predicate-short}, {predicate-class}, {subject}, {object-lang}, {object-datatype}.
+
+**List predicates**: multi-valued predicates auto-repeat the annotated element. Use display:flex + flex-wrap on the container for grid layouts.
+
+## CURRENT HTML TEMPLATE:
 \`\`\`html
 ${currentHtml || '(empty)'}
 \`\`\`
 
-CURRENT CSS STYLES:
+## CURRENT CSS STYLES:
 \`\`\`css
 ${currentCss || '(empty)'}
 \`\`\`
@@ -2644,9 +2863,7 @@ RDF resource: ${_triples.length ? (urlInput.value || '(unknown)') : '(no data lo
 Predicates available:
 ${predicateSummary || '  (none yet)'}
 
-The template uses data-rdf-predicate="<uri>" attributes for block-mode rendering (one render per subject; elements auto-repeat for list-valued predicates). Token placeholders: {object}, {predicate-short}, {predicate-class}, {object-is-uri}, {object-type}, {object-lang}.
-
-When the user asks you to modify the template, output the COMPLETE new HTML inside a \`\`\`html code block and the COMPLETE new CSS inside a \`\`\`css code block. If only HTML or only CSS needs changing, output only that block. Do not include any other prose before or after the code blocks when providing code changes.`;
+When the user asks to modify the template, output the COMPLETE new HTML inside a \`\`\`html block and the COMPLETE new CSS inside a \`\`\`css block. If only one needs changing, output only that block. Do not add prose before or after the code blocks when providing code.`;
 }
 
 function appendChatBubble(role, text, isStreaming = false) {
@@ -2678,8 +2895,8 @@ function addApplyButton(bubble, htmlCode, cssCode) {
   btn.className = 'chat-apply-btn';
   btn.textContent = '✅ Apply to editor';
   btn.addEventListener('click', () => {
-    if (htmlCode) { htmlTA.value = htmlCode; document.querySelector('[data-tab="html-editor"]').click(); }
-    if (cssCode)  { cssTA.value = cssCode; }
+    if (htmlCode) { setHtmlContent(htmlCode); document.querySelector('[data-tab="html-editor"]').click(); }
+    if (cssCode)  { setCssContent(cssCode); }
     updatePreview();
     btn.textContent = '✅ Applied!';
     btn.disabled = true;

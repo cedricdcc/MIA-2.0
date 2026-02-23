@@ -20,12 +20,14 @@
  *         • data-rdf-path      – space-separated predicate URIs; multi-hop traversal
  *                                always starts from the subjects in the current scope
  *       Nested annotated elements (sub-blocks) are resolved using the matched object
- *       URI as the new subject scope, enabling cards-within-cards etc.
+ *       URI or blank-node ID as the new subject scope, enabling cards-within-cards etc.
  *       Multi-valued predicates / path results automatically repeat the element.
  *       Elements with no matching triples are silently removed.
  *       Optional refinement attributes:
- *         data-rdf-filter-lang="<lang>"   e.g. "en"
- *         data-rdf-filter-type="<type>"   one of uri|image|datetime|date|integer|decimal|boolean|string
+ *         data-rdf-filter-lang="<lang>"       e.g. "en"
+ *         data-rdf-filter-type="<type>"       one of uri|image|datetime|date|integer|decimal|boolean|string
+ *         data-rdf-filter-contains="<pat>"    case-insensitive regex (or plain substring) match on object value
+ *         data-rdf-limit="<N>"                keep only the first N matches (1 = single element)
  *
  *     Supported {token} placeholders in both modes:
  *       {subject}, {predicate}, {predicate-short}, {predicate-class},
@@ -627,6 +629,24 @@ function _resolveAnnotatedElements(container, scopeTriples, allTriples) {
         t => _detectObjectType(t.object ?? "", t.objectDatatype ?? null) === filterType
       );
 
+    // data-rdf-filter-contains: case-insensitive regex (or substring) on the object value
+    const filterContains = el.getAttribute("data-rdf-filter-contains") || null;
+    el.removeAttribute("data-rdf-filter-contains");
+    if (filterContains) {
+      try {
+        const re = new RegExp(filterContains, "i");
+        matches = matches.filter(t => re.test(t.object ?? ""));
+      } catch (_) {
+        matches = matches.filter(t => (t.object ?? "").includes(filterContains));
+      }
+    }
+
+    // data-rdf-limit: keep only the first N matches
+    const limitStr = el.getAttribute("data-rdf-limit") || null;
+    el.removeAttribute("data-rdf-limit");
+    const limitN = limitStr !== null ? parseInt(limitStr, 10) : NaN;
+    if (!isNaN(limitN) && limitN > 0) matches = matches.slice(0, limitN);
+
     if (matches.length === 0) { el.remove(); continue; }
 
     // Keep a raw-token clone for list repetition BEFORE any filling
@@ -656,10 +676,15 @@ function _resolveAnnotatedElements(container, scopeTriples, allTriples) {
  * @param {Object}  triple
  * @param {Array}   allTriples
  */
+function _isBlankNode(v) {
+  return typeof v === "string" && v.startsWith("_:");
+}
+
 function _resolveInner(el, triple, allTriples) {
   const objUri = triple.object ?? "";
-  if (isUri(objUri)) {
+  if (isUri(objUri) || _isBlankNode(objUri)) {
     // Resolve inner annotated elements with the matched object as the new subject scope
+    // (works for both regular URIs and blank-node identifiers)
     const innerTriples = allTriples.filter(t => t.subject === objUri);
     _resolveAnnotatedElements(el, innerTriples, allTriples);
   } else {
@@ -673,10 +698,11 @@ function _resolveInner(el, triple, allTriples) {
 /**
  * Resolves a multi-hop property path through the graph.
  * path = [pred1, pred2, …] starting from `startSubjects`.
+ * Traverses both URI-valued and blank-node-valued intermediate objects.
  * Returns the final-step matching triples.
  *
  * @param {Array}  allTriples
- * @param {Array}  startSubjects  – array of subject URI strings
+ * @param {Array}  startSubjects  – array of subject URI / blank-node strings
  * @param {Array}  pathSteps      – array of predicate URI strings
  * @returns {Array}
  */
@@ -692,8 +718,8 @@ function _resolvePropertyPath(allTriples, startSubjects, pathSteps) {
     if (i === pathSteps.length - 1) {
       return matches; // Final step — return the matched triples
     }
-    // Intermediate step — update subjects to the URI objects
-    subjects = new Set(matches.map(t => t.object).filter(o => isUri(o)));
+    // Intermediate step — follow URI and blank-node objects as new subjects
+    subjects = new Set(matches.map(t => t.object).filter(o => isUri(o) || _isBlankNode(o)));
     if (!subjects.size) return []; // Dead-end path
   }
   return [];

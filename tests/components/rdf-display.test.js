@@ -691,4 +691,94 @@ describe("<rdf-display>", () => {
 
     tmpl.remove();
   });
+
+  // ---- Blank-node traversal -------------------------------------------------
+
+  it("block template: sub-block is resolved through a blank node", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-bnode-tmpl";
+    tmpl.innerHTML = `
+      <div class="outer-wrap"
+           data-rdf-predicate="http://purl.org/dc/terms/creator">
+        <span class="inner-name"
+              data-rdf-predicate="http://xmlns.com/foaf/0.1/name">{object}</span>
+      </div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-bnode-tmpl");
+    el.dispatchEvent(new CustomEvent("rdf-loaded", {
+      detail: {
+        triples: [
+          { subject: "https://s", predicate: "http://purl.org/dc/terms/creator", object: "_:b0" },
+        ],
+        allTriples: [
+          { subject: "https://s", predicate: "http://purl.org/dc/terms/creator", object: "_:b0" },
+          { subject: "_:b0",      predicate: "http://xmlns.com/foaf/0.1/name",   object: "Jane Doe" },
+        ],
+      },
+      bubbles: true, composed: true,
+    }));
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const name = host.querySelector(".inner-name");
+    expect(name).not.toBeNull();
+    expect(name.textContent.trim()).toBe("Jane Doe");
+
+    tmpl.remove();
+  });
+
+  // ---- data-rdf-limit -------------------------------------------------------
+
+  it("block template: data-rdf-limit caps the number of repeated elements", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-limit-tmpl";
+    tmpl.innerHTML = `<span class="tag"
+        data-rdf-predicate="http://example.org/tag"
+        data-rdf-limit="2">{object}</span>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-limit-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://example.org/tag", object: "alpha" },
+      { subject: "https://s", predicate: "http://example.org/tag", object: "beta" },
+      { subject: "https://s", predicate: "http://example.org/tag", object: "gamma" },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const tags = host.querySelectorAll(".tag");
+    expect(tags).toHaveLength(2);
+    expect(tags[0].textContent.trim()).toBe("alpha");
+    expect(tags[1].textContent.trim()).toBe("beta");
+
+    tmpl.remove();
+  });
+
+  // ---- data-rdf-filter-contains ---------------------------------------------
+
+  it("block template: data-rdf-filter-contains filters by regex/substring", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-contains-tmpl";
+    tmpl.innerHTML = `<span class="item"
+        data-rdf-predicate="http://example.org/label"
+        data-rdf-filter-contains="marine">{object}</span>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-contains-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://example.org/label", object: "Marine Biology" },
+      { subject: "https://s", predicate: "http://example.org/label", object: "Terrestrial Ecology" },
+      { subject: "https://s", predicate: "http://example.org/label", object: "MARINE Chemistry" },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const items = host.querySelectorAll(".item");
+    expect(items).toHaveLength(2);
+    const texts = [...items].map(i => i.textContent.trim()).sort();
+    expect(texts).toEqual(["MARINE Chemistry", "Marine Biology"]);
+
+    tmpl.remove();
+  });
 });
