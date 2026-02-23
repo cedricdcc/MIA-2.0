@@ -7,13 +7,25 @@
  *
  * Attributes:
  *   display-mode     – "list" (default) | "grid" | "table"
- *   template-id      – ID of a <template> element in the document; when set, each
- *                      triple is rendered by cloning that template and filling in
- *                      {subject}, {predicate}, {predicate-short}, {predicate-class},
- *                      {object}, {object-short}, {object-is-uri},
- *                      {object-type} (uri|datetime|date|integer|decimal|boolean|string),
- *                      {object-datatype} (full XSD datatype URI or empty),
- *                      {object-lang} (language tag e.g. "en" or empty) placeholders.
+ *   template-id      – ID of a <template> element in the document.  Two rendering modes:
+ *
+ *     LEGACY MODE (no data-rdf-predicate attributes in the template):
+ *       The template is cloned once per triple; all {token} placeholders are replaced.
+ *
+ *     BLOCK MODE (at least one element with data-rdf-predicate="<full-predicate-uri>"):
+ *       The template is rendered ONCE for the full triple set.  Each annotated element
+ *       is populated with the first triple that matches its predicate, and automatically
+ *       repeated for additional matches (list-valued predicates).  Elements with no
+ *       matching triples are silently removed.  Optional refinement attributes:
+ *         data-rdf-filter-lang="<lang>"   e.g. "en"
+ *         data-rdf-filter-type="<type>"   one of uri|datetime|date|integer|decimal|boolean|string
+ *
+ *     Supported {token} placeholders in both modes:
+ *       {subject}, {predicate}, {predicate-short}, {predicate-class},
+ *       {object}, {object-short}, {object-is-uri},
+ *       {object-type} (uri|datetime|date|integer|decimal|boolean|string),
+ *       {object-datatype} (full XSD datatype URI or empty),
+ *       {object-lang} (language tag e.g. "en" or empty)
  *   template-styles  – ID of a <style> element in the document; its CSS is injected
  *                      into the shadow root so it can style the cloned template content.
  *
@@ -320,6 +332,13 @@ export class RdfDisplay extends LitElement {
       return;
     }
 
+    // ── Block mode: template has at least one [data-rdf-predicate] element ──
+    if (tmpl.content.querySelector("[data-rdf-predicate]")) {
+      _renderBlockTemplate(host, tmpl, this.triples);
+      return;
+    }
+
+    // ── Legacy mode: clone once per triple ──
     for (const triple of this.triples) {
       const clone = tmpl.content.cloneNode(true);
       _fillPlaceholders(clone, {
@@ -441,6 +460,136 @@ function _fillPlaceholders(fragment, replacements) {
       if (value !== attr.value) attr.value = value;
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: build token replacement map for a single triple
+// ---------------------------------------------------------------------------
+
+function _buildTokenMap(triple) {
+  return {
+    "{subject}":         triple.subject ?? "",
+    "{predicate}":       triple.predicate ?? "",
+    "{predicate-short}": shortenUri(triple.predicate ?? ""),
+    "{predicate-class}": _toCssClass(triple.predicate ?? ""),
+    "{object}":          triple.object ?? "",
+    "{object-short}":    shortenUri(triple.object ?? ""),
+    "{object-is-uri}":   isUri(triple.object ?? "") ? "true" : "false",
+    "{object-type}":     _detectObjectType(triple.object ?? "", triple.objectDatatype ?? null),
+    "{object-datatype}": triple.objectDatatype ?? "",
+    "{object-lang}":     triple.objectLang ?? "",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Helper: apply token replacements to an Element (its own attrs + descendants).
+// Unlike _fillPlaceholders (which works on DocumentFragment), this also handles
+// the attributes on the root element itself.
+// ---------------------------------------------------------------------------
+
+function _applyTokensToElement(el, tokenMap) {
+  // Text nodes inside the element's subtree
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  for (const node of textNodes) {
+    let text = node.nodeValue;
+    for (const [k, v] of Object.entries(tokenMap)) text = text.split(k).join(v);
+    node.nodeValue = text;
+  }
+
+  // Attributes on the root element itself AND all descendants
+  const elements = [el, ...el.querySelectorAll("*")];
+  for (const child of elements) {
+    for (const attr of Array.from(child.attributes)) {
+      let value = attr.value;
+      for (const [k, v] of Object.entries(tokenMap)) value = value.split(k).join(v);
+      if (value !== attr.value) attr.value = value;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Block-template rendering
+//
+// Renders the template ONCE for the full triple set instead of once per triple.
+// Each element annotated with [data-rdf-predicate="<uri>"] is populated with
+// the subset of triples that match that predicate (and any optional refinements
+// via data-rdf-filter-lang / data-rdf-filter-type).  Multi-valued predicates
+// automatically repeat the element as sibling copies.  Elements with no
+// matching triples are silently removed.  Any remaining {token} placeholders
+// in structural (non-annotated) elements are cleared using the subject of the
+// first triple as context.
+// ---------------------------------------------------------------------------
+
+function _renderBlockTemplate(host, tmpl, triples) {
+  const clone = tmpl.content.cloneNode(true);
+
+  // Snapshot annotated elements before any DOM mutations (avoid live-list issues)
+  const annotated = [...clone.querySelectorAll("[data-rdf-predicate]")];
+
+  for (const el of annotated) {
+    const predicateUri = el.getAttribute("data-rdf-predicate");
+    const filterLang   = el.getAttribute("data-rdf-filter-lang") || null;
+    const filterType   = el.getAttribute("data-rdf-filter-type") || null;
+
+    // Remove filter attributes so they don't appear in the rendered output
+    el.removeAttribute("data-rdf-predicate");
+    el.removeAttribute("data-rdf-filter-lang");
+    el.removeAttribute("data-rdf-filter-type");
+
+    // Build the matching set
+    let matches = predicateUri
+      ? triples.filter((t) => t.predicate === predicateUri)
+      : [...triples];
+    if (filterLang)
+      matches = matches.filter((t) => (t.objectLang ?? "") === filterLang);
+    if (filterType)
+      matches = matches.filter(
+        (t) =>
+          _detectObjectType(t.object ?? "", t.objectDatatype ?? null) === filterType
+      );
+
+    if (matches.length === 0) {
+      el.remove();
+      continue;
+    }
+
+    // Keep a base clone (tokens intact) for generating additional list copies
+    const baseClone = el.cloneNode(true);
+
+    // Populate the first match in-place
+    _applyTokensToElement(el, _buildTokenMap(matches[0]));
+
+    // Clone from the base (still has raw tokens) and insert for each extra match
+    let insertRef = el;
+    for (let i = 1; i < matches.length; i++) {
+      const extra = baseClone.cloneNode(true);
+      _applyTokensToElement(extra, _buildTokenMap(matches[i]));
+      if (insertRef.parentNode) {
+        insertRef.parentNode.insertBefore(extra, insertRef.nextSibling);
+      }
+      insertRef = extra;
+    }
+  }
+
+  // Clear any remaining {token} placeholders in structural/layout elements
+  if (triples.length > 0) {
+    _fillPlaceholders(clone, {
+      "{subject}":         triples[0].subject ?? "",
+      "{predicate}":       "",
+      "{predicate-short}": "",
+      "{predicate-class}": "",
+      "{object}":          "",
+      "{object-short}":    "",
+      "{object-is-uri}":   "false",
+      "{object-type}":     "string",
+      "{object-datatype}": "",
+      "{object-lang}":     "",
+    });
+  }
+
+  host.appendChild(clone);
 }
 
 // ---------------------------------------------------------------------------

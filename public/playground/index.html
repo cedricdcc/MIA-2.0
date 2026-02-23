@@ -408,12 +408,15 @@
       font-style: italic; line-height: 1.65;
     }
     .canvas-empty b { color: #7aaad0; font-style: normal; }
+    /* canvas-block is now a flex column so the filter row can sit below */
     .canvas-block {
-      display: flex; align-items: center; gap: .35rem; background: #263849;
+      display: flex; flex-direction: column; background: #263849;
       border: 1px solid #2e4a68; border-radius: 5px; padding: .28rem .4rem;
     }
     .canvas-block.drag-over-top { border-top: 2px solid #3a9af8; }
     .canvas-block.drag-over-bottom { border-bottom: 2px solid #3a9af8; }
+    /* main row inside each canvas block */
+    .canvas-block-main { display: flex; align-items: center; gap: .35rem; }
     .block-drag-handle { cursor: grab; color: #4a6a8a; font-size: .9rem; flex-shrink: 0; user-select: none; }
     .block-drag-handle:active { cursor: grabbing; }
     .block-type-icon { font-size: .78rem; flex-shrink: 0; }
@@ -423,11 +426,31 @@
       background: #1a2535; color: #c9d8ea; border: 1px solid #3a5a7c;
       border-radius: 3px; min-width: 0;
     }
+    .block-filter-toggle {
+      flex-shrink: 0; padding: .1rem .3rem; background: none;
+      border: 1px solid #2a4a6a; border-radius: 3px; color: #6a9ac8; cursor: pointer; font-size: .64rem;
+      title: 'Add language or type filter';
+    }
+    .block-filter-toggle:hover { background: #1e3a5a; border-color: #3a7abf; }
     .block-delete-btn {
       flex-shrink: 0; padding: .08rem .32rem; background: none;
       border: 1px solid #4a2a2a; border-radius: 3px; color: #cc7777; cursor: pointer; font-size: .66rem;
     }
     .block-delete-btn:hover { background: #3a1a1a; border-color: #cc4444; }
+    /* filter row (hidden by default, toggled open per block) */
+    .block-filter-row {
+      display: none; padding: .22rem .4rem .1rem 1.8rem; gap: .4rem;
+      align-items: center; flex-wrap: wrap; border-top: 1px dashed #2a3e54; margin-top: .22rem;
+    }
+    .block-filter-row label { font-size: .6rem; color: #6a8ab0; white-space: nowrap; }
+    .block-filter-sel {
+      font-size: .62rem; padding: .1rem .22rem;
+      background: #1a2535; color: #c9d8ea; border: 1px solid #2a4a6a;
+      border-radius: 3px; max-width: 110px;
+    }
+    .block-filter-hint {
+      font-size: .58rem; color: #4a6a8a; font-style: italic; white-space: nowrap;
+    }
     .block-controls {
       display: flex; gap: .35rem; align-items: center; padding: .35rem .55rem;
       background: #151f2d; border-top: 1px solid #2a3e54; flex-shrink: 0;
@@ -649,6 +672,13 @@
         <span class="block-status" id="block-status">Add blocks to start building your template.</span>
       </div>
     </div>
+
+    <!-- datalist for common language tags (used by block filter inputs) -->
+    <datalist id="lang-list">
+      <option value="en"><option value="fr"><option value="de">
+      <option value="nl"><option value="es"><option value="pt">
+      <option value="it"><option value="zh"><option value="ja">
+    </datalist>
 
     <!-- Token cheat-sheet row -->
     <div class="token-grid" title="Click a token to insert it at the cursor">
@@ -894,59 +924,64 @@ const BLOCK_TYPES = {
   divider:      { label: 'Divider',     icon: '─',  suggestsFor: [] },
 };
 
-function blockToHtmlCss(blockType, predicateUri) {
-  const cssClass = predicateUri ? toCssClass(predicateUri) : 'rdf-prop';
-  const short    = predicateUri ? escHtml(shortenUri(predicateUri)) : '{predicate-short}';
+function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '') {
+  // Build data-rdf-* filter attribute string
+  const filterAttrs = [
+    predicateUri ? `\n     data-rdf-predicate="${escHtml(predicateUri)}"` : '',
+    filterLang   ? ` data-rdf-filter-lang="${escHtml(filterLang)}"` : '',
+    filterType   ? ` data-rdf-filter-type="${escHtml(filterType)}"` : '',
+  ].join('');
+
   switch (blockType) {
     case 'heading':
       return {
-        html: `<h2 class="triple ${cssClass}">{object}</h2>`,
-        css:  `.triple.${cssClass} { display: block; width: 100%; font-size: 1.6rem; font-weight: 700; color: #083d6b; margin: 0 0 .5rem; }`,
+        html: `<h2 class="block-heading"${filterAttrs}>{object}</h2>`,
+        css:  `.block-heading { display: block; width: 100%; font-size: 1.6rem; font-weight: 700; color: #083d6b; margin: 0 0 .5rem; }`,
       };
     case 'subheading':
       return {
-        html: `<h3 class="triple ${cssClass}">{object}</h3>`,
-        css:  `.triple.${cssClass} { display: block; width: 100%; font-size: 1.1rem; font-weight: 600; color: #1a4f80; margin: 0 0 .4rem; }`,
+        html: `<h3 class="block-subheading"${filterAttrs}>{object}</h3>`,
+        css:  `.block-subheading { display: block; width: 100%; font-size: 1.1rem; font-weight: 600; color: #1a4f80; margin: 0 0 .4rem; }`,
       };
     case 'description':
       return {
-        html: `<p class="triple ${cssClass}">{object}</p>`,
-        css:  `.triple.${cssClass} { display: block; width: 100%; color: #333; line-height: 1.65; margin: 0 0 1rem; font-size: .9rem; }`,
+        html: `<p class="block-description"${filterAttrs}>{object}</p>`,
+        css:  `.block-description { display: block; width: 100%; color: #333; line-height: 1.65; margin: 0 0 1rem; font-size: .9rem; }`,
       };
     case 'tag-cloud':
       return {
-        html: `<span class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <span class="tag-text">{object}</span>\n  <a class="tag-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</span>`,
-        css:  `.triple.${cssClass} { display: inline-flex; align-items: center; background: #e3f0fb; border: 1px solid #90caf9; border-radius: 12px; padding: .22em .65em; font-size: .82rem; color: #0d47a1; }\n.triple.${cssClass}[data-is-uri="false"] .tag-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .tag-text { display: none; }\n.triple.${cssClass} .tag-link { color: inherit; text-decoration: none; }\n.triple.${cssClass} .tag-link:hover { text-decoration: underline; }`,
+        html: `<span class="block-tag"\n     data-is-uri="{object-is-uri}"${filterAttrs}>\n  <span class="tag-text">{object}</span>\n  <a class="tag-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</span>`,
+        css:  `.block-tag { display: inline-flex; align-items: center; background: #e3f0fb; border: 1px solid #90caf9; border-radius: 12px; padding: .22em .65em; font-size: .82rem; color: #0d47a1; }\n.block-tag[data-is-uri="false"] .tag-link { display: none; }\n.block-tag[data-is-uri="true"]  .tag-text { display: none; }\n.block-tag .tag-link { color: inherit; text-decoration: none; }\n.block-tag .tag-link:hover { text-decoration: underline; }`,
       };
     case 'link-cards':
       return {
-        html: `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <div class="card-label">${short}</div>\n  <div class="card-body">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </div>\n</div>`,
-        css:  `.triple.${cssClass} { display: flex; flex-direction: column; gap: .22rem; min-width: 150px; flex: 1 1 190px; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; }\n.triple.${cssClass} .card-label { font-size: .68rem; font-weight: 700; color: #3a6fa8; text-transform: uppercase; letter-spacing: .05em; }\n.triple.${cssClass} .value-link { color: #083d6b; font-weight: 600; text-decoration: none; }\n.triple.${cssClass} .value-link:hover { text-decoration: underline; }\n.triple.${cssClass}[data-is-uri="false"] .value-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .value-text { display: none; }`,
+        html: `<div class="block-link-card"\n     data-is-uri="{object-is-uri}"${filterAttrs}>\n  <div class="card-body">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </div>\n</div>`,
+        css:  `.block-link-card { display: flex; flex-direction: column; gap: .22rem; min-width: 150px; flex: 1 1 190px; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; }\n.block-link-card .value-link { color: #083d6b; font-weight: 600; text-decoration: none; }\n.block-link-card .value-link:hover { text-decoration: underline; }\n.block-link-card[data-is-uri="false"] .value-link { display: none; }\n.block-link-card[data-is-uri="true"]  .value-text { display: none; }`,
       };
     case 'date-field':
       return {
-        html: `<div class="triple ${cssClass} date-block">\n  <span class="field-label">${short}</span>\n  <time class="field-value" datetime="{object}" data-type="{object-type}">{object}</time>\n</div>`,
-        css:  `.triple.${cssClass} { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.triple.${cssClass} .field-label { font-weight: 600; color: #6a1b9a; font-size: .75rem; min-width: 80px; flex-shrink: 0; }\n.triple.${cssClass} .field-value { color: #4a148c; font-variant-numeric: tabular-nums; }`,
+        html: `<div class="block-date"${filterAttrs}>\n  <time class="date-value" datetime="{object}" data-type="{object-type}">{object}</time>\n</div>`,
+        css:  `.block-date { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.block-date .date-value { color: #4a148c; font-variant-numeric: tabular-nums; }`,
       };
     case 'number-field':
       return {
-        html: `<div class="triple ${cssClass} number-block">\n  <span class="field-label">${short}</span>\n  <span class="field-value" data-type="{object-type}">{object}</span>\n</div>`,
-        css:  `.triple.${cssClass} { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.triple.${cssClass} .field-label { font-weight: 600; color: #e65100; font-size: .75rem; min-width: 80px; flex-shrink: 0; }\n.triple.${cssClass} .field-value { color: #bf360c; font-weight: 700; font-variant-numeric: tabular-nums; }`,
+        html: `<div class="block-number"${filterAttrs}>\n  <span class="number-value" data-type="{object-type}">{object}</span>\n</div>`,
+        css:  `.block-number { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.block-number .number-value { color: #bf360c; font-weight: 700; font-variant-numeric: tabular-nums; }`,
       };
     case 'link-field':
       return {
-        html: `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}">\n  <span class="field-label">${short}</span>\n  <span class="value-text">{object}</span>\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`,
-        css:  `.triple.${cssClass} { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.triple.${cssClass} .field-label { font-weight: 600; color: #1a4f80; font-size: .75rem; min-width: 80px; flex-shrink: 0; }\n.triple.${cssClass} .value-link { color: #1a6fa8; text-decoration: none; }\n.triple.${cssClass} .value-link:hover { text-decoration: underline; }\n.triple.${cssClass}[data-is-uri="false"] .value-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .value-text { display: none; }`,
+        html: `<div class="block-link"\n     data-is-uri="{object-is-uri}"${filterAttrs}>\n  <span class="value-text">{object}</span>\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`,
+        css:  `.block-link { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.block-link .value-link { color: #1a6fa8; text-decoration: none; }\n.block-link .value-link:hover { text-decoration: underline; }\n.block-link[data-is-uri="false"] .value-link { display: none; }\n.block-link[data-is-uri="true"]  .value-text { display: none; }`,
       };
     case 'kv-row':
       return {
-        html: `<div class="triple ${cssClass}" data-is-uri="{object-is-uri}" data-type="{object-type}">\n  <dt class="kv-label">{predicate-short}</dt>\n  <dd class="kv-value">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </dd>\n</div>`,
-        css:  `.triple.${cssClass} { display: flex; align-items: baseline; gap: .5rem; font-size: .85rem; padding: .15rem 0; }\n.triple.${cssClass} .kv-label { font-weight: 600; color: #555; font-size: .78rem; min-width: 100px; flex-shrink: 0; }\n.triple.${cssClass} .kv-value { color: #222; margin: 0; word-break: break-word; }\n.triple.${cssClass} .value-link { color: #1a6fa8; text-decoration: none; }\n.triple.${cssClass} .value-link:hover { text-decoration: underline; }\n.triple.${cssClass}[data-is-uri="false"] .value-link { display: none; }\n.triple.${cssClass}[data-is-uri="true"] .value-text { display: none; }`,
+        html: `<div class="block-kv"\n     data-is-uri="{object-is-uri}" data-type="{object-type}"${filterAttrs}>\n  <dt class="kv-label">{predicate-short}</dt>\n  <dd class="kv-value">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </dd>\n</div>`,
+        css:  `.block-kv { display: flex; align-items: baseline; gap: .5rem; font-size: .85rem; padding: .15rem 0; }\n.block-kv .kv-label { font-weight: 600; color: #555; font-size: .78rem; min-width: 100px; flex-shrink: 0; }\n.block-kv .kv-value { color: #222; margin: 0; word-break: break-word; }\n.block-kv .value-link { color: #1a6fa8; text-decoration: none; }\n.block-kv .value-link:hover { text-decoration: underline; }\n.block-kv[data-is-uri="false"] .value-link { display: none; }\n.block-kv[data-is-uri="true"]  .value-text { display: none; }`,
       };
     case 'divider':
       return {
-        html: '',
-        css:  `.rdf-template-host { border-top: 1px solid #e0e7ef; margin-top: .5rem; padding-top: .5rem; }`,
+        html: '<hr class="block-divider" />',
+        css:  `.block-divider { border: none; border-top: 1px solid #e0e7ef; width: 100%; margin: .4rem 0; }`,
       };
     default:
       return { html: '', css: '' };
@@ -980,10 +1015,17 @@ function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
   let bodyContent = '';
 
   if (mode === 'template') {
-    const rows = triples.map(t => fillPlaceholders(templateHtml, t)).join('\n');
+    // Detect block-style template (has at least one data-rdf-predicate element)
+    const isBlockStyle = /<[^>]+data-rdf-predicate/.test(templateHtml);
+    let rendered;
+    if (isBlockStyle) {
+      rendered = renderBlockTemplate(templateHtml, triples);
+    } else {
+      rendered = triples.map(t => fillPlaceholders(templateHtml, t)).join('\n');
+    }
     bodyContent = `
       <style id="tmpl-styles">${templateCss}</style>
-      <div class="rdf-template-host">${rows}</div>`;
+      <div class="rdf-template-host">${rendered}</div>`;
   } else if (mode === 'list') {
     const rows = triples.map(t => {
       const short = shortenUri(t.predicate);
@@ -1025,6 +1067,94 @@ function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
     table{border-collapse:collapse;width:100%}th,td{border:1px solid #dde4ed;padding:.4rem .65rem;text-align:left}th{background:#edf2f8;font-size:.85em}
   </style>
 </head><body>${bodyContent}</body></html>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM-based token replacement for preview (works on an Element or fragment)
+// ─────────────────────────────────────────────────────────────────────────────
+function applyTokensToElement(el, triple) {
+  const map = {
+    '{subject}':         triple.subject   ?? '',
+    '{predicate}':       triple.predicate ?? '',
+    '{predicate-short}': shortenUri(triple.predicate ?? ''),
+    '{predicate-class}': toCssClass(triple.predicate ?? ''),
+    '{object}':          triple.object    ?? '',
+    '{object-short}':    shortenUri(triple.object ?? ''),
+    '{object-is-uri}':   isUri(triple.object ?? '') ? 'true' : 'false',
+    '{object-type}':     detectValueType(triple.object ?? '', triple.objectDatatype ?? null),
+    '{object-datatype}': triple.objectDatatype ?? '',
+    '{object-lang}':     triple.objectLang ?? '',
+  };
+  // Text nodes
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  for (const tn of textNodes) {
+    let t = tn.nodeValue;
+    for (const [k, v] of Object.entries(map)) t = t.split(k).join(v);
+    tn.nodeValue = t;
+  }
+  // Attributes on element itself + all descendants
+  const allEls = el.nodeType === Node.ELEMENT_NODE
+    ? [el, ...el.querySelectorAll('*')]
+    : [...el.querySelectorAll('*')];
+  for (const child of allEls) {
+    for (const attr of Array.from(child.attributes)) {
+      let v = attr.value;
+      for (const [k, val] of Object.entries(map)) v = v.split(k).join(val);
+      if (v !== attr.value) attr.value = v;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block-style template rendering for the preview iframe.
+// Mirrors the logic in rdf-display.js _renderBlockTemplate():
+// template is rendered ONCE; each [data-rdf-predicate] element is filled with
+// matching triples (repeated for lists, removed if no match).
+// ─────────────────────────────────────────────────────────────────────────────
+function renderBlockTemplate(templateHtml, triples) {
+  const container = document.createElement('div');
+  container.innerHTML = templateHtml;
+
+  const annotated = [...container.querySelectorAll('[data-rdf-predicate]')];
+  for (const el of annotated) {
+    const predicateUri = el.getAttribute('data-rdf-predicate');
+    const filterLang   = el.getAttribute('data-rdf-filter-lang') || null;
+    const filterType   = el.getAttribute('data-rdf-filter-type') || null;
+
+    el.removeAttribute('data-rdf-predicate');
+    el.removeAttribute('data-rdf-filter-lang');
+    el.removeAttribute('data-rdf-filter-type');
+
+    let matches = predicateUri
+      ? triples.filter(t => t.predicate === predicateUri)
+      : [...triples];
+    if (filterLang) matches = matches.filter(t => (t.objectLang ?? '') === filterLang);
+    if (filterType) matches = matches.filter(t => detectValueType(t.object ?? '', t.objectDatatype) === filterType);
+
+    if (matches.length === 0) { el.remove(); continue; }
+
+    // Keep a token-intact base for list copies
+    const base = el.cloneNode(true);
+    applyTokensToElement(el, matches[0]);
+
+    let ref = el;
+    for (let i = 1; i < matches.length; i++) {
+      const extra = base.cloneNode(true);
+      applyTokensToElement(extra, matches[i]);
+      if (ref.parentNode) ref.parentNode.insertBefore(extra, ref.nextSibling);
+      ref = extra;
+    }
+  }
+  // Clear remaining tokens using subject context
+  if (triples.length > 0) {
+    applyTokensToElement(container, {
+      subject: triples[0].subject, predicate: '', object: '',
+      objectDatatype: null, objectLang: null,
+    });
+  }
+  return container.innerHTML;
 }
 
 function escHtml(s) {
@@ -1233,7 +1363,7 @@ function updateCanvasStatus() {
     : 'Add blocks to start building your template.';
 }
 
-function addBlockToCanvas(blockType, predicateUri = '') {
+function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterType = '') {
   const def = BLOCK_TYPES[blockType];
   if (!def) return;
   // Remove empty-state placeholder
@@ -1251,15 +1381,30 @@ function addBlockToCanvas(blockType, predicateUri = '') {
     return `<option value="${u}"${sel}>${s}</option>`;
   }).join('');
 
+  const typeOpts = ['','uri','datetime','date','integer','decimal','boolean','string'].map(t =>
+    `<option value="${t}"${filterType === t ? ' selected' : ''}>${t || '(any type)'}</option>`
+  ).join('');
+
   block.innerHTML = `
-    <span class="block-drag-handle" title="Drag to reorder">⠿</span>
-    <span class="block-type-icon">${def.icon}</span>
-    <span class="block-type-label">${escHtml(def.label)}</span>
-    <select class="block-predicate-sel" title="Predicate this block applies to">
-      <option value="">(any predicate)</option>
-      ${opts}
-    </select>
-    <button class="block-delete-btn" title="Remove block">✕</button>`;
+    <div class="canvas-block-main">
+      <span class="block-drag-handle" title="Drag to reorder">⠿</span>
+      <span class="block-type-icon">${def.icon}</span>
+      <span class="block-type-label">${escHtml(def.label)}</span>
+      <select class="block-predicate-sel" title="Predicate this block applies to">
+        <option value="">(any predicate)</option>
+        ${opts}
+      </select>
+      <button class="block-filter-toggle" title="Add language / type filter">⚙</button>
+      <button class="block-delete-btn" title="Remove block">✕</button>
+    </div>
+    <div class="block-filter-row" style="display:none">
+      <label>Lang:</label>
+      <input class="block-filter-sel block-filter-lang" list="lang-list" placeholder="en / fr / …"
+             value="${escHtml(filterLang)}" style="width:4.5rem" />
+      <label>Type:</label>
+      <select class="block-filter-sel block-filter-type">${typeOpts}</select>
+      <span class="block-filter-hint">→ filters which triples this block uses</span>
+    </div>`;
 
   block.querySelector('.block-delete-btn').addEventListener('click', () => {
     block.remove();
@@ -1267,11 +1412,23 @@ function addBlockToCanvas(blockType, predicateUri = '') {
       blockCanvas.innerHTML = `<div class="canvas-empty" id="canvas-empty">← Drag blocks from the palette, or click a property's <b>Block</b> button to add it here</div>`;
     }
     updateCanvasStatus();
+    scheduleBlockPreview();
   });
+
+  block.querySelector('.block-filter-toggle').addEventListener('click', () => {
+    const row = block.querySelector('.block-filter-row');
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  // Live preview on any change
+  block.querySelector('.block-predicate-sel').addEventListener('change', scheduleBlockPreview);
+  block.querySelector('.block-filter-lang').addEventListener('input', scheduleBlockPreview);
+  block.querySelector('.block-filter-type').addEventListener('change', scheduleBlockPreview);
 
   setupCanvasBlockDrag(block);
   blockCanvas.appendChild(block);
   updateCanvasStatus();
+  scheduleBlockPreview();
 }
 
 function setupCanvasBlockDrag(blockEl) {
@@ -1292,6 +1449,7 @@ function setupCanvasBlockDrag(blockEl) {
     blockCanvas.querySelectorAll('.canvas-block').forEach(b => {
       b.classList.remove('drag-over-top', 'drag-over-bottom');
     });
+    scheduleBlockPreview();
   });
   blockEl.addEventListener('dragover', e => {
     if (!_draggedCanvasBlock || _draggedCanvasBlock === blockEl) return;
@@ -1312,6 +1470,43 @@ function setupCanvasBlockDrag(blockEl) {
     }
     blockEl.classList.remove('drag-over-top','drag-over-bottom');
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Live preview: generate block template on-the-fly (debounced) and push to
+// the preview iframe without updating the code editor textareas.
+// ─────────────────────────────────────────────────────────────────────────────
+let _blockPreviewDebounce;
+function scheduleBlockPreview() {
+  clearTimeout(_blockPreviewDebounce);
+  _blockPreviewDebounce = setTimeout(liveGenerateBlockPreview, 300);
+}
+
+function liveGenerateBlockPreview() {
+  if (!_triples.length) return;
+  const blocks = [...blockCanvas.querySelectorAll('.canvas-block')];
+  if (!blocks.length) return;
+
+  const htmlParts = [];
+  const cssParts  = [
+    `/* Generated by block editor (live preview) */`,
+    `.rdf-template-host { display: flex; flex-wrap: wrap; gap: .5rem; padding: 1.25rem; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); font-family: 'Segoe UI', system-ui, sans-serif; }`,
+    ``,
+  ];
+
+  for (const block of blocks) {
+    const blockType   = block.dataset.blockType;
+    const predUri     = block.querySelector('.block-predicate-sel')?.value ?? '';
+    const fLang       = block.querySelector('.block-filter-lang')?.value.trim() ?? '';
+    const fType       = block.querySelector('.block-filter-type')?.value ?? '';
+    const { html, css } = blockToHtmlCss(blockType, predUri, fLang, fType);
+    if (html) htmlParts.push(html);
+    if (css)  { cssParts.push(`/* ${BLOCK_TYPES[blockType]?.label ?? blockType} */`); cssParts.push(css); cssParts.push(''); }
+  }
+
+  if (!htmlParts.length) return;
+  const doc = buildPreviewDoc(_triples, 'template', htmlParts.join('\n'), cssParts.join('\n'));
+  previewFrame.srcdoc = doc;
 }
 
 // Palette → canvas drag
@@ -1350,6 +1545,9 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
   const htmlParts = [];
   const cssParts  = [
     `/* ── Generated by RDF Template Playground block editor ── */`,
+    `/* Block-style template: each element targets a specific predicate           */`,
+    `/* (data-rdf-predicate). The rdf-display component renders this ONCE per     */`,
+    `/* subject — no duplicate cloning. Multi-valued predicates auto-repeat.      */`,
     `.rdf-template-host {`,
     `  display: flex;`,
     `  flex-wrap: wrap;`,
@@ -1361,22 +1559,21 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
     `  font-family: 'Segoe UI', system-ui, sans-serif;`,
     `}`,
     ``,
-    `/* Hide all triples by default — show only those with explicit styles below */`,
-    `.triple { display: none; }`,
-    ``,
   ];
 
   for (const block of blocks) {
-    const blockType    = block.dataset.blockType;
-    const predicateUri = block.querySelector('.block-predicate-sel')?.value ?? '';
-    const { html, css } = blockToHtmlCss(blockType, predicateUri);
+    const blockType   = block.dataset.blockType;
+    const predUri     = block.querySelector('.block-predicate-sel')?.value ?? '';
+    const fLang       = block.querySelector('.block-filter-lang')?.value.trim() ?? '';
+    const fType       = block.querySelector('.block-filter-type')?.value ?? '';
+    const { html, css } = blockToHtmlCss(blockType, predUri, fLang, fType);
     if (html) htmlParts.push(html);
     if (css)  { cssParts.push(`/* ── ${BLOCK_TYPES[blockType]?.label ?? blockType} ── */`); cssParts.push(css); cssParts.push(''); }
   }
 
   htmlTA.value = (_selectedSubject
-    ? `<!-- Template for subject: ${escHtml(_selectedSubject)} -->\n`
-    : '') + htmlParts.join('\n');
+    ? `<!-- Block-style template for subject: ${escHtml(_selectedSubject)} -->\n`
+    : '<!-- Block-style template (data-rdf-predicate filtering) -->\n') + htmlParts.join('\n');
   cssTA.value  = cssParts.join('\n');
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
@@ -1752,12 +1949,23 @@ function buildAiPrompt(predicateLines, resourceUrl, subjectUri) {
     ? `Subject URI: ${subjectUri}\n(Only the predicates/objects for this specific subject are listed below.)`
     : '(All subjects combined)';
   return `You are an expert HTML and CSS developer specialising in semantic web / RDF data visualisation.
-Generate a display template for the <rdf-display> web component.
+Generate a display template for the <rdf-display> web component using the NEW block-style format.
 
-## How the template system works
+## How the block-style template system works
 
-The <rdf-display> component renders RDF triples. For EACH triple it clones a <div> template
-and replaces these placeholder tokens in text nodes AND attribute values:
+IMPORTANT: Unlike the old system (one template clone per triple), the NEW system renders the template
+ONCE for a subject.  Each element with a \`data-rdf-predicate="<full-uri>"\` attribute is populated
+with the triples that match that specific predicate:
+
+- If 1 match  → the element is rendered once with that triple's values.
+- If N matches → the element is automatically repeated N times (list/multi-valued predicate).
+- If 0 matches → the element is silently removed from the output.
+
+Optional refinement attributes on each element:
+  data-rdf-filter-lang="<lang>"   – keep only triples with this language tag (e.g. "en")
+  data-rdf-filter-type="<type>"   – keep only triples of this inferred type
+
+## Available {token} placeholders (replaced per matching triple)
 
 | Token              | Replaced with                                                      |
 |--------------------|--------------------------------------------------------------------|
@@ -1774,73 +1982,71 @@ and replaces these placeholder tokens in text nodes AND attribute values:
 
 ## Rules for value types
 
-Use {object-type} and {object-is-uri} to choose the right HTML element and display:
+- **uri** → <a href="{object}">{object-short}</a>
+- **datetime / date** → <time datetime="{object}">{object}</time>
+- **integer / decimal** → <span class="number-value">{object}</span>
+- **boolean** → <span data-value="{object}">{object}</span>
+- **string** → <span> or <p> as appropriate
+- Use data-is-uri="{object-is-uri}" on the outer element and CSS attribute selectors:
+    [data-is-uri="true"]  .value-text { display: none; }
+    [data-is-uri="false"] .value-link { display: none; }
 
-- **uri** → render as a hyperlink: <a href="{object}">{object-short}</a>
-- **datetime / date** → use <time datetime="{object}">{object}</time>
-- **integer / decimal** → display as a number, optionally in a <span class="value-number">
-- **boolean** → show a tick/cross icon based on value: <span data-value="{object}">
-- **string** → plain text <span> or <p> as appropriate
-- Use data-is-uri="{object-is-uri}" on the outer div and CSS attribute selectors:
-    .triple[data-is-uri="true"]  .value-text { display: none; }
-    .triple[data-is-uri="false"] .value-link { display: none; }
+## Rules for list predicates (marked [LIST])
 
-## Rules for lists (multi-valued predicates)
-
-Predicates marked [LIST] appear multiple times. Each occurrence creates a SEPARATE sibling
-div with the SAME CSS class. Use CSS flex/grid on .rdf-template-host to group them visually:
-- String lists → use display: inline-flex with chip/tag styling
-- URI lists → use flex: 1 1 Npx cards inside a flex-wrap container
-- Date/number lists → stack vertically
-
-## Rendering rules
-
-1. The template fragment is cloned ONCE PER TRIPLE — one div per (predicate, object) pair.
-2. The CSS runs inside a Shadow DOM. The host container has class "rdf-template-host".
-3. Show title and description prominently at full width.
-4. Group subjects/keywords (type=string, LIST) as chip tags.
-5. Render member URIs (type=uri, LIST) as link cards in a flex grid.
-6. De-emphasise or hide rdf:type and purely structural predicates.
-7. Use modern CSS (flexbox/grid). Make it look professional and polished.
+Multi-valued predicates create repeated sibling elements automatically.
+CSS layout on .rdf-template-host handles their arrangement:
+- String lists → inline-flex chips
+- URI lists → flex: 1 1 Npx link cards inside flex-wrap
+- Date/number lists → block stack
 
 ## Resource being visualised
 URL: ${resourceUrl || '(unknown)'}
 ${subjectLine}
 
-## Predicates found in the actual fetched data
-(columns: CSS class | short name | inferred type | occurrence count | examples)
+## Predicates found in the fetched data
+(columns: CSS class | short name | inferred type | count | [LIST] flag | examples)
 
 ${predicateLines}
 
 ## Your task
 
-Generate a complete, visually attractive template for this specific data, using the correct
-element and display pattern for EACH predicate's inferred type (see table above).
+Generate a complete, visually attractive block-style template for this specific data.
+Use the correct element, class, and data-rdf-predicate for EACH predicate.
 
-## Required output format — return EXACTLY these two fenced code blocks and NOTHING else
+## Required output — return EXACTLY these two fenced code blocks and NOTHING else
 
 \`\`\`html
-<div class="triple {predicate-class}"
-     data-predicate="{predicate}"
-     data-is-uri="{object-is-uri}"
-     data-type="{object-type}">
-  <!-- your markup using the tokens above — one div covers all predicates via CSS -->
+<!-- Block-style template: rendered ONCE per subject; each element targets one predicate -->
+<h2 class="block-heading"
+    data-rdf-predicate="http://example.org/title">{object}</h2>
+<p class="block-description"
+   data-rdf-predicate="http://example.org/description">{object}</p>
+<!-- List predicate (repeated automatically): -->
+<div class="block-link-card"
+     data-rdf-predicate="http://example.org/member"
+     data-is-uri="{object-is-uri}">
+  <a class="value-link" href="{object}">{object-short}</a>
+  <span class="value-text">{object}</span>
 </div>
+<!-- … one element per predicate … -->
 \`\`\`
 
 \`\`\`css
-/* Styles for .rdf-template-host and each .triple.{predicate-class} */
-.rdf-template-host { /* container layout — flex-wrap recommended */ }
-.triple { display: none; /* hide all by default; show only explicitly styled classes */ }
-/* Style each predicate class according to its type and role: */
-.triple.title { /* full-width heading */ }
-.triple.description { /* full-width paragraph */ }
-/* list predicates: */
-.triple.member { /* flex card — appear side-by-side due to flex-wrap */ }
-.triple.subject { /* inline chip */ }
-/* value predicates: */
-.triple.created { /* date/time display */ }
-/* … add one rule per predicate class … */
+/* Container */
+.rdf-template-host {
+  display: flex; flex-wrap: wrap; gap: .5rem; padding: 1.5rem;
+  background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+/* Heading */
+.block-heading { display: block; width: 100%; font-size: 1.6rem; font-weight: 700; color: #083d6b; margin: 0 0 .5rem; }
+/* Description */
+.block-description { display: block; width: 100%; color: #333; line-height: 1.65; margin: 0 0 1rem; }
+/* Link cards (list) */
+.block-link-card { flex: 1 1 190px; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; }
+.block-link-card[data-is-uri="false"] .value-link { display: none; }
+.block-link-card[data-is-uri="true"]  .value-text { display: none; }
+/* … one rule set per predicate … */
 \`\`\``;
 }
 

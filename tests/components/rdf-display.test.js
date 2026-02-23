@@ -452,6 +452,113 @@ describe("<rdf-display>", () => {
     tmpl.remove();
   });
 
+  // ---- Block-template mode (data-rdf-predicate) ----------------------------
+
+  it("block template: renders each annotated element with its matching predicate", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-basic-tmpl";
+    tmpl.innerHTML = `
+      <h2 class="block-title" data-rdf-predicate="http://purl.org/dc/terms/title">{object}</h2>
+      <p class="block-desc" data-rdf-predicate="http://purl.org/dc/terms/description">{object}</p>
+    `;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-basic-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://purl.org/dc/terms/title", object: "My Title" },
+      { subject: "https://s", predicate: "http://purl.org/dc/terms/description", object: "My Desc" },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const title = host.querySelector("h2.block-title");
+    const desc  = host.querySelector("p.block-desc");
+    expect(title).not.toBeNull();
+    expect(title.textContent.trim()).toBe("My Title");
+    expect(desc).not.toBeNull();
+    expect(desc.textContent.trim()).toBe("My Desc");
+
+    tmpl.remove();
+  });
+
+  it("block template: repeats annotated element for multi-valued (list) predicates", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-list-tmpl";
+    tmpl.innerHTML = `
+      <a class="block-member" data-rdf-predicate="http://www.w3.org/2004/02/skos/core#member"
+         href="{object}">{object-short}</a>
+    `;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-list-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://www.w3.org/2004/02/skos/core#member", object: "https://example.org/1" },
+      { subject: "https://s", predicate: "http://www.w3.org/2004/02/skos/core#member", object: "https://example.org/2" },
+      { subject: "https://s", predicate: "http://www.w3.org/2004/02/skos/core#member", object: "https://example.org/3" },
+    ]);
+    await updateComplete(el);
+
+    const members = el.shadowRoot.querySelectorAll(".rdf-template-host a.block-member");
+    expect(members).toHaveLength(3);
+    expect(members[0].getAttribute("href")).toBe("https://example.org/1");
+    expect(members[2].getAttribute("href")).toBe("https://example.org/3");
+
+    tmpl.remove();
+  });
+
+  it("block template: removes annotated element when no matching triples", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-remove-tmpl";
+    tmpl.innerHTML = `
+      <h2 class="block-title" data-rdf-predicate="http://purl.org/dc/terms/title">{object}</h2>
+      <p class="block-desc" data-rdf-predicate="http://purl.org/dc/terms/description">{object}</p>
+    `;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-remove-tmpl");
+    // Only provide title, no description
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://purl.org/dc/terms/title", object: "Title Only" },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    expect(host.querySelector("h2.block-title")).not.toBeNull();
+    // Description element removed because no matching triple exists
+    expect(host.querySelector("p.block-desc")).toBeNull();
+
+    tmpl.remove();
+  });
+
+  it("block template: data-rdf-filter-lang filters by language tag", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-lang-tmpl";
+    tmpl.innerHTML = `
+      <p class="title-en" data-rdf-predicate="http://purl.org/dc/terms/title"
+         data-rdf-filter-lang="en">{object}</p>
+      <p class="title-fr" data-rdf-predicate="http://purl.org/dc/terms/title"
+         data-rdf-filter-lang="fr">{object}</p>
+    `;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-lang-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://purl.org/dc/terms/title", object: "Hello", objectLang: "en" },
+      { subject: "https://s", predicate: "http://purl.org/dc/terms/title", object: "Bonjour", objectLang: "fr" },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const enEl = host.querySelector("p.title-en");
+    const frEl = host.querySelector("p.title-fr");
+    expect(enEl).not.toBeNull();
+    expect(enEl.textContent.trim()).toBe("Hello");
+    expect(frEl).not.toBeNull();
+    expect(frEl.textContent.trim()).toBe("Bonjour");
+
+    tmpl.remove();
+  });
+
   // ---- Direct property setter ----------------------------------------------
 
   it("renders when triples property is set directly", async () => {
