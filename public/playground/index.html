@@ -326,7 +326,9 @@
       border-radius: 4px;
       font-size: .82rem;
       background: #fff;
+      max-width: 280px;
     }
+    .ai-model-select option[value=""] { color: #999; font-style: italic; }
     .ai-suggest-btn {
       padding: .4rem 1.1rem;
       background: linear-gradient(135deg, #5c35d4 0%, #8a4af0 100%);
@@ -357,6 +359,12 @@
       padding: .15em .5em;
       white-space: nowrap;
     }
+    .ai-load-btn {
+      background: linear-gradient(135deg, #3a6fa8, #1a4f80);
+      font-size: .8rem;
+      padding: .4rem .85rem;
+    }
+    .ai-load-btn:not(:disabled):hover { background: linear-gradient(135deg, #2a5f98, #0a3f70); }
 
     /* ── Responsive adjustments ──────────────────────────────────────── */
     @media (max-width: 900px) {
@@ -404,15 +412,12 @@
   <label for="ai-key">🤖 OpenRouter Key</label>
   <input type="password" id="ai-key" class="ai-key-input"
          placeholder="sk-or-v1-… (kept in-memory only)" />
-  <label for="ai-model">Model</label>
+  <button class="ai-suggest-btn ai-load-btn" id="load-models-btn">🔄 Load free models</button>
   <select id="ai-model" class="ai-model-select">
-    <option value="openai/gpt-4o-mini">GPT-4o mini (fast &amp; cheap)</option>
-    <option value="anthropic/claude-3-haiku">Claude 3 Haiku (great HTML/CSS)</option>
-    <option value="google/gemini-flash-1.5">Gemini 1.5 Flash</option>
-    <option value="mistralai/mistral-7b-instruct">Mistral 7B (free tier)</option>
+    <option value="">— enter key &amp; load models —</option>
   </select>
   <button class="ai-suggest-btn" id="ai-suggest-btn">✨ AI Suggest</button>
-  <span class="ai-status" id="ai-status">Load RDF data and enter an OpenRouter API key, then click AI Suggest.</span>
+  <span class="ai-status" id="ai-status">Enter your OpenRouter API key, load free models, then click AI Suggest.</span>
   <span class="ai-key-note" title="Your key is sent only to api.openrouter.ai and is never stored on disk or sent elsewhere.">🔐 in-memory only</span>
 </div>
 
@@ -956,17 +961,67 @@ ${tmplHtml}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Suggest – calls OpenRouter to generate HTML + CSS template
+// Uses dynamically fetched free models; tries each in sequence until one works
 // ─────────────────────────────────────────────────────────────────────────────
-const aiSuggestBtn = document.getElementById('ai-suggest-btn');
-const aiKeyInput   = document.getElementById('ai-key');
-const aiModelSel   = document.getElementById('ai-model');
-const aiStatusEl   = document.getElementById('ai-status');
+const aiSuggestBtn  = document.getElementById('ai-suggest-btn');
+const loadModelsBtn = document.getElementById('load-models-btn');
+const aiKeyInput    = document.getElementById('ai-key');
+const aiModelSel    = document.getElementById('ai-model');
+const aiStatusEl    = document.getElementById('ai-status');
+
+// Identifier suffix used by OpenRouter to denote free-tier models
+const FREE_MODEL_SUFFIX = ':free';
 
 function setAiStatus(html, type = '') {
   aiStatusEl.innerHTML = html;
   aiStatusEl.className = 'ai-status' + (type ? ' ' + type : '');
 }
 
+// ── Load free models from OpenRouter ────────────────────────────────────────
+async function doLoadModels() {
+  const apiKey = aiKeyInput.value.trim();
+  if (!apiKey) {
+    setAiStatus('❌ Please enter your OpenRouter API key first.', 'error');
+    aiKeyInput.focus();
+    return;
+  }
+
+  loadModelsBtn.disabled = true;
+  setAiStatus('<span class="spinner"></span> Fetching free models from OpenRouter…');
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const freeModels = (data.data ?? []).filter(m => m.id && m.id.includes(FREE_MODEL_SUFFIX));
+
+    if (freeModels.length === 0) throw new Error('No free models available for this key.');
+
+    // Rebuild the select
+    aiModelSel.innerHTML = '';
+    for (const m of freeModels) {
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name ? `${m.name} (${m.id})` : m.id;
+      aiModelSel.appendChild(opt);
+    }
+
+    setAiStatus(`✅ ${freeModels.length} free model${freeModels.length !== 1 ? 's' : ''} loaded. Select one and click ✨ AI Suggest.`, 'success');
+  } catch (err) {
+    setAiStatus(`❌ Could not load models: ${escHtml(err.message)}`, 'error');
+  } finally {
+    loadModelsBtn.disabled = false;
+  }
+}
+
+loadModelsBtn.addEventListener('click', doLoadModels);
 aiSuggestBtn.addEventListener('click', doAiSuggest);
 
 async function doAiSuggest() {
@@ -981,64 +1036,101 @@ async function doAiSuggest() {
     return;
   }
 
+  // Collect models to try: if free models have been loaded, use them all in sequence;
+  // otherwise fall back to trying only the currently selected option.
+  const allOptions = [...aiModelSel.options].map(o => o.value).filter(Boolean);
+  if (allOptions.length === 0) {
+    setAiStatus('❌ No models available. Click "Load free models" first.', 'error');
+    return;
+  }
+
+  // Prefer the currently selected model; try others as fallbacks.
+  const selectedVal = aiModelSel.value;
+  const modelsToTry = selectedVal
+    ? [selectedVal, ...allOptions.filter(id => id !== selectedVal)]
+    : allOptions;
+
   aiSuggestBtn.disabled = true;
-  setAiStatus('<span class="spinner"></span> Asking AI to generate template…');
+
+  // Build predicate summary for the prompt (shared across all model attempts)
+  const predicateMap = new Map();
+  for (const t of _triples) {
+    if (!predicateMap.has(t.predicate)) predicateMap.set(t.predicate, []);
+    const examples = predicateMap.get(t.predicate);
+    if (examples.length < 3) examples.push(t.object);
+  }
+
+  const predicateLines = [...predicateMap.entries()].map(([uri, examples]) => {
+    const short    = shortenUri(uri);
+    const cssClass = toCssClass(uri);
+    const count    = _triples.filter(t => t.predicate === uri).length;
+    const exStr = examples.slice(0, 2).map(e =>
+      isUri(e) ? `<${e}>` : `"${e.slice(0, 80)}${e.length > 80 ? '…' : ''}"`
+    ).join(', ');
+    return `  - class="${cssClass}"  short="${short}"  ${count}×  e.g. ${exStr}`;
+  }).join('\n');
+
+  const prompt = buildAiPrompt(predicateLines, urlInput.value.trim());
+
+  let suggestion = null;
+  const modelErrors = [];
+
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const modelId = modelsToTry[i];
+    setAiStatus(`<span class="spinner"></span> Trying model ${i + 1}/${modelsToTry.length}: <em>${escHtml(modelId)}</em>…`);
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'MIA 2.0 RDF Template Playground',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 4096,
+          temperature: 0.3,
+        }),
+      });
+
+      if (!response.ok) {
+        const httpStatus = `HTTP ${response.status}`;
+        let errMsg = httpStatus;
+        try {
+          const errData = await response.json();
+          errMsg = errData.error?.message || errData.message || httpStatus;
+        } catch (_) {}
+        modelErrors.push(`${modelId}: ${errMsg}`);
+        continue; // try next model
+      }
+
+      const data    = await response.json();
+      const content = data.choices?.[0]?.message?.content?.trim() ?? '';
+      if (!content) {
+        modelErrors.push(`${modelId}: empty response`);
+        continue;
+      }
+
+      suggestion = { content, modelId };
+      break; // success – stop trying further models
+    } catch (err) {
+      modelErrors.push(`${modelId}: ${err.message}`);
+      // continue to next model
+    }
+  }
 
   try {
-    // Build predicate summary for the prompt
-    const predicateMap = new Map();
-    for (const t of _triples) {
-      if (!predicateMap.has(t.predicate)) predicateMap.set(t.predicate, []);
-      const examples = predicateMap.get(t.predicate);
-      if (examples.length < 3) examples.push(t.object);
+    if (!suggestion) {
+      const detail = modelErrors.length
+        ? modelErrors.map((e, i) => `${i + 1}. ${e}`).join(' | ')
+        : 'unknown error';
+      throw new Error(`All ${modelsToTry.length} model(s) failed. Errors: ${detail}`);
     }
 
-    const predicateLines = [...predicateMap.entries()].map(([uri, examples]) => {
-      const short    = shortenUri(uri);
-      const cssClass = toCssClass(uri);
-      const count    = _triples.filter(t => t.predicate === uri).length;
-      const exStr = examples.slice(0, 2).map(e =>
-        isUri(e) ? `<${e}>` : `"${e.slice(0, 80)}${e.length > 80 ? '…' : ''}"`
-      ).join(', ');
-      return `  - class="${cssClass}"  short="${short}"  ${count}×  e.g. ${exStr}`;
-    }).join('\n');
-
-    const prompt = buildAiPrompt(predicateLines, urlInput.value.trim());
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'MIA 2.0 RDF Template Playground',
-      },
-      body: JSON.stringify({
-        model: aiModelSel.value,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 4096,
-        temperature: 0.3,
-      }),
-    });
-
-    if (!response.ok) {
-      const httpStatus = `HTTP ${response.status}`;
-      let errMsg = httpStatus;
-      try {
-        const errData = await response.json();
-        errMsg = errData.error?.message || errData.message || httpStatus;
-      } catch (parseErr) {
-        // JSON parse failed — fall back to the HTTP status code already set
-        errMsg = httpStatus;
-      }
-      throw new Error(`OpenRouter: ${errMsg}`);
-    }
-
-    const data    = await response.json();
-    const content = data.choices?.[0]?.message?.content ?? '';
-    if (!content) throw new Error('Empty response from AI.');
-
-    const { html: aiHtml, css: aiCss, warnings } = extractAiCodeBlocks(content);
+    const { html: aiHtml, css: aiCss, warnings } = extractAiCodeBlocks(suggestion.content);
 
     if (!aiHtml && !aiCss) {
       throw new Error('No HTML/CSS code blocks found in AI response. The model may have refused or returned unexpected output.');
@@ -1052,10 +1144,16 @@ async function doAiSuggest() {
 
     updatePreview();
 
+    // Highlight which model succeeded in the selector
+    aiModelSel.value = suggestion.modelId;
+
     const warnStr = warnings.length
       ? ` ⚠️ ${warnings.length} validation warning${warnings.length > 1 ? 's' : ''}: ${warnings.join('; ')}`
       : '';
-    setAiStatus(`✅ AI template applied!${warnStr}`, warnings.length ? '' : 'success');
+    setAiStatus(
+      `✅ Template generated by <strong>${escHtml(suggestion.modelId)}</strong>!${warnStr}`,
+      warnings.length ? '' : 'success'
+    );
   } catch (err) {
     setAiStatus(`❌ ${escHtml(err.message)}`, 'error');
   } finally {
