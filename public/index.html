@@ -12,36 +12,110 @@
   <link rel="describedby" href="/rdf-data/example.ttl" type="text/turtle" />
 
   <style>
-    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
     h1   { color: #2c5f8a; }
-    rdf-adapter { display: block; margin-top: 1rem; border: 1px solid #ccc; padding: 1rem; border-radius: 4px; }
-    rdf-adapter dl  { margin: 0; }
-    rdf-adapter dt  { font-weight: bold; color: #555; margin-top: .5rem; }
-    rdf-adapter dd  { margin-left: 1rem; color: #222; }
-    rdf-adapter a   { color: #2c5f8a; }
-    .rdf-loading    { color: #888; font-style: italic; }
-    .rdf-error      { color: #c00; }
+    h2   { color: #3a7faa; margin-top: 2rem; }
+    section { margin-bottom: 2rem; border: 1px solid #e0e0e0; padding: 1rem; border-radius: 6px; }
+    pre  { background: #f5f5f5; padding: .75rem; border-radius: 4px; font-size: 0.85em; overflow: auto; }
   </style>
+
+  <!-- Custom template for the template-id demo -->
+  <template id="triple-card">
+    <div style="border:1px solid #ccc; border-radius:4px; padding:.6rem; margin:.4rem 0; background:#fff;">
+      <strong style="color:#555; font-size:.8em">{predicate-short}</strong><br/>
+      <span>{object}</span>
+    </div>
+  </template>
 </head>
 <body>
-  <h1>MIA 2.0 – RDF Adapter Demo</h1>
+  <h1>MIA 2.0 – RDF Adapter &amp; Display Demo</h1>
 
-  <p>
-    This demo uses the <code>&lt;rdf-adapter&gt;</code> custom element to fetch,
-    parse, and render the RDF data linked via
-    <code>&lt;link rel="describedby"&gt;</code> in the document head.
-  </p>
+  <!-- ============================================================
+       1. Standalone rdf-adapter (auto-discovers describedby link)
+  ============================================================ -->
+  <h2>1. Standalone &lt;rdf-adapter&gt; (auto-discovers describedby)</h2>
+  <section>
+    <pre>&lt;rdf-adapter&gt;&lt;/rdf-adapter&gt;</pre>
+    <rdf-adapter></rdf-adapter>
+  </section>
 
-  <!-- Render all triples from the describedby source -->
-  <rdf-adapter></rdf-adapter>
+  <!-- ============================================================
+       2. rdf-display – list mode (default)
+  ============================================================ -->
+  <h2>2. &lt;rdf-display&gt; – list mode (default)</h2>
+  <section>
+    <pre>&lt;rdf-display&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display>
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
 
-  <!-- Explicit src, filtered by subject -->
-  <h2>Filtered by subject</h2>
-  <rdf-adapter
+  <!-- ============================================================
+       3. rdf-display – grid mode
+  ============================================================ -->
+  <h2>3. &lt;rdf-display&gt; – grid mode</h2>
+  <section>
+    <pre>&lt;rdf-display display-mode="grid"&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display display-mode="grid">
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       4. rdf-display – table mode
+  ============================================================ -->
+  <h2>4. &lt;rdf-display&gt; – table mode</h2>
+  <section>
+    <pre>&lt;rdf-display display-mode="table"&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display display-mode="table">
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       5. rdf-display – custom template
+  ============================================================ -->
+  <h2>5. &lt;rdf-display&gt; – custom &lt;template&gt;</h2>
+  <section>
+    <pre>&lt;!-- template element defined in &lt;head&gt; --&gt;
+&lt;template id="triple-card"&gt;
+  &lt;div&gt;&lt;strong&gt;{predicate-short}&lt;/strong&gt;&lt;br/&gt;&lt;span&gt;{object}&lt;/span&gt;&lt;/div&gt;
+&lt;/template&gt;
+
+&lt;rdf-display template-id="triple-card"&gt;
+  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display template-id="triple-card">
+      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <!-- ============================================================
+       6. rdf-display – subject-filtered
+  ============================================================ -->
+  <h2>6. &lt;rdf-display&gt; – subject-filtered</h2>
+  <section>
+    <pre>&lt;rdf-display display-mode="table"&gt;
+  &lt;rdf-adapter
     src="/rdf-data/example.ttl"
     subject="https://example.org/dataset/1"
-  ></rdf-adapter>
+  &gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display display-mode="table">
+      <rdf-adapter
+        src="/rdf-data/example.ttl"
+        subject="https://example.org/dataset/1"
+      ></rdf-adapter>
+    </rdf-display>
+  </section>
 
   <script type="module" src="/src/components/rdf-adapter.js"></script>
+  <script type="module" src="/src/components/rdf-display.js"></script>
 </body>
 </html>

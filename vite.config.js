@@ -10,20 +10,15 @@ export default defineConfig({
     // Minify for production
     minify: "esbuild",
     lib: {
-      entry: "src/components/rdf-adapter.js",
-      name: "RdfAdapter",
-      fileName: "rdf-adapter",
-      formats: ["es", "umd"],
+      entry: {
+        "rdf-adapter": "src/components/rdf-adapter.js",
+        "rdf-display": "src/components/rdf-display.js",
+      },
+      formats: ["es"],
     },
     rollupOptions: {
-      // Externalise n3 so users can choose their own version
-      external: ["n3"],
-      output: {
-        globals: {
-          n3: "N3",
-        },
-        exports: "named",
-      },
+      // Externalise n3 and lit so users can choose their own versions
+      external: ["n3", "lit"],
     },
   },
 

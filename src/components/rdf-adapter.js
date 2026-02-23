@@ -14,6 +14,10 @@
  *   src        – explicit RDF URL (optional)
  *   subject    – filter triples by subject URI (optional)
  *   no-shadow  – disable Shadow DOM (render into light DOM instead)
+ *
+ * Events dispatched (bubble + composed):
+ *   rdf-loaded  – { detail: { triples: Array<{subject,predicate,object}> } }
+ *   rdf-error   – { detail: { message: string, url?: string } }
  */
 
 import { fetchRdf } from "../utils/rdf-fetcher.js";
@@ -102,6 +106,7 @@ export class RdfAdapter extends HTMLElement {
           for (const quad of quads) {
             if (subjectFilter && quad.subject.value !== subjectFilter) continue;
             allTriples.push({
+              subject: quad.subject.value,
               predicate: quad.predicate.value,
               object: quad.object.value,
             });
@@ -109,6 +114,13 @@ export class RdfAdapter extends HTMLElement {
         } catch (err) {
           if (!signal.aborted) {
             showError(this._root, `Failed to load ${url}: ${err.message}`);
+            this.dispatchEvent(
+              new CustomEvent("rdf-error", {
+                detail: { message: err.message, url },
+                bubbles: true,
+                composed: true,
+              })
+            );
           }
         }
       }
@@ -116,6 +128,13 @@ export class RdfAdapter extends HTMLElement {
       if (!signal.aborted) {
         hideLoading(this._root);
         renderTriples(this._root, allTriples);
+        this.dispatchEvent(
+          new CustomEvent("rdf-loaded", {
+            detail: { triples: allTriples },
+            bubbles: true,
+            composed: true,
+          })
+        );
       }
     } catch (err) {
       if (!signal.aborted) {

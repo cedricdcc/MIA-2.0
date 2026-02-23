@@ -154,16 +154,54 @@ describe("<rdf-adapter>", () => {
     link.remove();
   });
 
-  it("shows an error when fetchRdf rejects", async () => {
-    fetchRdf.mockRejectedValueOnce(new Error("network error"));
+  it("dispatches rdf-loaded event with triples after successful parse", async () => {
+    fetchRdf.mockResolvedValueOnce({
+      text: "",
+      format: "text/turtle",
+      url: "https://example.org/data.ttl",
+    });
+    parseRdf.mockResolvedValueOnce([
+      makeQuad("https://example.org/s", "http://purl.org/dc/terms/title", "Hi"),
+    ]);
+
+    el = document.createElement("rdf-adapter");
+    el.setAttribute("no-shadow", "");
+    el.setAttribute("src", "https://example.org/data.ttl");
+
+    let loadedDetail = null;
+    el.addEventListener("rdf-loaded", (e) => {
+      loadedDetail = e.detail;
+    });
+
+    document.body.appendChild(el);
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(loadedDetail).not.toBeNull();
+    expect(loadedDetail.triples).toHaveLength(1);
+    expect(loadedDetail.triples[0].subject).toBe("https://example.org/s");
+    expect(loadedDetail.triples[0].predicate).toBe(
+      "http://purl.org/dc/terms/title"
+    );
+    expect(loadedDetail.triples[0].object).toBe("Hi");
+  });
+
+  it("dispatches rdf-error event when fetchRdf rejects", async () => {
+    fetchRdf.mockRejectedValueOnce(new Error("fetch failed"));
 
     el = document.createElement("rdf-adapter");
     el.setAttribute("no-shadow", "");
     el.setAttribute("src", "https://example.org/broken.ttl");
-    document.body.appendChild(el);
 
+    let errorDetail = null;
+    el.addEventListener("rdf-error", (e) => {
+      errorDetail = e.detail;
+    });
+
+    document.body.appendChild(el);
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(el.querySelector(".rdf-error")).not.toBeNull();
+    expect(errorDetail).not.toBeNull();
+    expect(errorDetail.message).toContain("fetch failed");
   });
 });
+
