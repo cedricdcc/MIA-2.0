@@ -6,11 +6,13 @@
  * it in a configurable presentation mode.
  *
  * Attributes:
- *   display-mode  – "list" (default) | "grid" | "table"
- *   template-id   – ID of a <template> element in the document; when set, each
- *                   triple is rendered by cloning that template and filling in
- *                   {subject}, {predicate}, {predicate-short}, {object},
- *                   {object-short} placeholders.
+ *   display-mode     – "list" (default) | "grid" | "table"
+ *   template-id      – ID of a <template> element in the document; when set, each
+ *                      triple is rendered by cloning that template and filling in
+ *                      {subject}, {predicate}, {predicate-short}, {predicate-class},
+ *                      {object}, {object-short}, {object-is-uri} placeholders.
+ *   template-styles  – ID of a <style> element in the document; its CSS is injected
+ *                      into the shadow root so it can style the cloned template content.
  *
  * Events listened for (bubbling from slotted children):
  *   rdf-loaded  – sets internal `triples` and triggers re-render
@@ -141,6 +143,12 @@ export class RdfDisplay extends LitElement {
     displayMode: { type: String, attribute: "display-mode" },
     /** ID of a <template> element for custom per-triple rendering. */
     templateId: { type: String, attribute: "template-id" },
+    /**
+     * ID of a <style> element in the page.  Its CSS text is injected into the
+     * shadow root so it can style the cloned template content (which lives
+     * inside the shadow DOM and is therefore not reachable by page-level CSS).
+     */
+    templateStyles: { type: String, attribute: "template-styles" },
     _error: { state: true },
   };
 
@@ -153,6 +161,7 @@ export class RdfDisplay extends LitElement {
     this.triples = [];
     this.displayMode = "list";
     this.templateId = null;
+    this.templateStyles = null;
     this._error = null;
 
     this._handleRdfLoaded = this._handleRdfLoaded.bind(this);
@@ -292,6 +301,9 @@ export class RdfDisplay extends LitElement {
   // ---------------------------------------------------------------------------
 
   updated() {
+    // Inject custom template styles into the shadow root (idempotent).
+    this._injectTemplateStyles();
+
     if (!this.templateId || !this.triples.length) return;
 
     const host = this.shadowRoot?.querySelector(".rdf-template-host");
@@ -311,12 +323,49 @@ export class RdfDisplay extends LitElement {
         "{subject}": triple.subject ?? "",
         "{predicate}": triple.predicate ?? "",
         "{predicate-short}": shortenUri(triple.predicate ?? ""),
+        "{predicate-class}": _toCssClass(triple.predicate ?? ""),
         "{object}": triple.object ?? "",
         "{object-short}": shortenUri(triple.object ?? ""),
+        "{object-is-uri}": isUri(triple.object ?? "") ? "true" : "false",
       });
       host.appendChild(clone);
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Inject page <style> into shadow root for template styling
+  // ---------------------------------------------------------------------------
+
+  /**
+   * If `template-styles` is set, inject the referenced <style> element's CSS
+   * into the shadow root.  The injection is idempotent (runs once per unique
+   * style ID).
+   */
+  _injectTemplateStyles() {
+    if (!this.templateStyles || !this.shadowRoot) return;
+    const markerAttr = `data-injected-styles`;
+    const markerVal = this.templateStyles;
+    if (this.shadowRoot.querySelector(`[${markerAttr}="${markerVal}"]`)) return;
+    const sourceEl = document.getElementById(this.templateStyles);
+    if (!sourceEl) return;
+    const style = document.createElement("style");
+    style.setAttribute(markerAttr, markerVal);
+    style.textContent = sourceEl.textContent;
+    this.shadowRoot.prepend(style);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helper: convert a URI to a CSS-safe class name
+// e.g. "http://purl.org/dc/terms/title" → "title"
+//      "http://www.w3.org/2004/02/skos/core#member" → "member"
+// ---------------------------------------------------------------------------
+
+function _toCssClass(uri) {
+  const short = shortenUri(uri);
+  // One pass: non-alphanumeric chars → "-", then trim leading/trailing "-"
+  const cls = short.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return cls || "rdf-prop";
 }
 
 // ---------------------------------------------------------------------------

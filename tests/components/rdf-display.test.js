@@ -191,6 +191,107 @@ describe("<rdf-display>", () => {
     tmpl.remove();
   });
 
+  it("fills {predicate-class} and {object-is-uri} placeholders", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "placeholder-tmpl";
+    tmpl.innerHTML = `<div class="t {predicate-class}" data-is-uri="{object-is-uri}">
+      <span class="obj-text">{object}</span>
+      <a class="obj-link" href="{object}">{object-short}</a>
+    </div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "placeholder-tmpl");
+    fireRdfLoaded(el, [
+      {
+        subject: "https://example.org/s",
+        predicate: "http://purl.org/dc/terms/title",
+        object: "My Title",
+      },
+      {
+        subject: "https://example.org/s",
+        predicate: "http://www.w3.org/2004/02/skos/core#member",
+        object: "https://example.org/dataset/1",
+      },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+
+    // First triple: literal object
+    const titleDiv = host.querySelector(".t.title");
+    expect(titleDiv).not.toBeNull();
+    expect(titleDiv.dataset.isUri).toBe("false");
+    expect(titleDiv.querySelector(".obj-text").textContent).toBe("My Title");
+
+    // Second triple: URI object
+    const memberDiv = host.querySelector(".t.member");
+    expect(memberDiv).not.toBeNull();
+    expect(memberDiv.dataset.isUri).toBe("true");
+    expect(memberDiv.querySelector(".obj-link").getAttribute("href")).toBe(
+      "https://example.org/dataset/1"
+    );
+    expect(memberDiv.querySelector(".obj-link").textContent).toBe("1");
+
+    tmpl.remove();
+  });
+
+  it("injects template-styles into the shadow root", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "styled-tmpl";
+    tmpl.innerHTML = `<div class="triple {predicate-class}">{object}</div>`;
+    document.body.appendChild(tmpl);
+
+    const styleEl = document.createElement("style");
+    styleEl.id = "styled-tmpl-css";
+    styleEl.textContent = `.triple.title { color: red; }`;
+    document.body.appendChild(styleEl);
+
+    el.setAttribute("template-id", "styled-tmpl");
+    el.setAttribute("template-styles", "styled-tmpl-css");
+    fireRdfLoaded(
+      el,
+      makeTriples(["http://purl.org/dc/terms/title", "Styled"])
+    );
+    await updateComplete(el);
+
+    const injected = el.shadowRoot.querySelector(
+      "[data-injected-styles='styled-tmpl-css']"
+    );
+    expect(injected).not.toBeNull();
+    expect(injected.textContent).toContain(".triple.title");
+
+    tmpl.remove();
+    styleEl.remove();
+  });
+
+  it("does not duplicate injected styles on re-render", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "nodup-tmpl";
+    tmpl.innerHTML = `<div>{object}</div>`;
+    document.body.appendChild(tmpl);
+
+    const styleEl = document.createElement("style");
+    styleEl.id = "nodup-css";
+    styleEl.textContent = `.triple { color: blue; }`;
+    document.body.appendChild(styleEl);
+
+    el.setAttribute("template-id", "nodup-tmpl");
+    el.setAttribute("template-styles", "nodup-css");
+    fireRdfLoaded(el, makeTriples(["http://example.org/p", "v1"]));
+    await updateComplete(el);
+    // Trigger a second render
+    fireRdfLoaded(el, makeTriples(["http://example.org/p", "v2"]));
+    await updateComplete(el);
+
+    const injected = el.shadowRoot.querySelectorAll(
+      "[data-injected-styles='nodup-css']"
+    );
+    expect(injected).toHaveLength(1);
+
+    tmpl.remove();
+    styleEl.remove();
+  });
+
   it("shows an error when template-id refers to a missing element", async () => {
     el.setAttribute("template-id", "non-existent-template");
     fireRdfLoaded(el, makeTriples(["http://example.org/p", "v"]));
