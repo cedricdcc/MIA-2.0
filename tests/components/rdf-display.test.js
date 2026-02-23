@@ -569,4 +569,126 @@ describe("<rdf-display>", () => {
     const dds = el.shadowRoot.querySelectorAll("dd");
     expect(dds[0].textContent.trim()).toBe("Direct");
   });
+
+  // ---- Property path (data-rdf-path) ---------------------------------------
+
+  it("block template: data-rdf-path resolves two-hop property path", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-path-tmpl";
+    tmpl.innerHTML = `<span class="creator-name" data-rdf-path="http://purl.org/dc/terms/creator http://xmlns.com/foaf/0.1/name">{object}</span>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-path-tmpl");
+    // Dispatch with allTriples so the second hop can be resolved
+    el.dispatchEvent(new CustomEvent("rdf-loaded", {
+      detail: {
+        triples: [
+          { subject: "https://s", predicate: "http://purl.org/dc/terms/creator", object: "https://creator-uri" },
+        ],
+        allTriples: [
+          { subject: "https://s",           predicate: "http://purl.org/dc/terms/creator", object: "https://creator-uri" },
+          { subject: "https://creator-uri", predicate: "http://xmlns.com/foaf/0.1/name",   object: "Alice Smith" },
+        ],
+      },
+      bubbles: true,
+      composed: true,
+    }));
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const span = host.querySelector("span.creator-name");
+    expect(span).not.toBeNull();
+    expect(span.textContent.trim()).toBe("Alice Smith");
+
+    tmpl.remove();
+  });
+
+  it("block template: data-rdf-path removes element when path has no match", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-path-nomatch-tmpl";
+    tmpl.innerHTML = `<span class="missing" data-rdf-path="http://example.org/unknown http://example.org/name">{object}</span>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-path-nomatch-tmpl");
+    el.dispatchEvent(new CustomEvent("rdf-loaded", {
+      detail: {
+        triples:    [{ subject: "https://s", predicate: "http://purl.org/dc/terms/title", object: "T" }],
+        allTriples: [{ subject: "https://s", predicate: "http://purl.org/dc/terms/title", object: "T" }],
+      },
+      bubbles: true, composed: true,
+    }));
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    expect(host.querySelector("span.missing")).toBeNull();
+
+    tmpl.remove();
+  });
+
+  // ---- Sub-blocks (nested annotated elements) --------------------------------
+
+  it("block template: nested annotated element (sub-block) resolved from parent match object", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-subblock-tmpl";
+    tmpl.innerHTML = `
+      <div class="section-card"
+           data-rdf-predicate="http://www.w3.org/2004/02/skos/core#member">
+        <span class="member-label"
+              data-rdf-predicate="http://www.w3.org/2000/01/rdf-schema#label">{object}</span>
+      </div>
+    `;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-subblock-tmpl");
+    el.dispatchEvent(new CustomEvent("rdf-loaded", {
+      detail: {
+        // Outer scope: collection has 2 members
+        triples: [
+          { subject: "https://col", predicate: "http://www.w3.org/2004/02/skos/core#member", object: "https://member-a" },
+          { subject: "https://col", predicate: "http://www.w3.org/2004/02/skos/core#member", object: "https://member-b" },
+        ],
+        // Full graph: each member has a label
+        allTriples: [
+          { subject: "https://col",      predicate: "http://www.w3.org/2004/02/skos/core#member",    object: "https://member-a" },
+          { subject: "https://col",      predicate: "http://www.w3.org/2004/02/skos/core#member",    object: "https://member-b" },
+          { subject: "https://member-a", predicate: "http://www.w3.org/2000/01/rdf-schema#label",    object: "Member A" },
+          { subject: "https://member-b", predicate: "http://www.w3.org/2000/01/rdf-schema#label",    object: "Member B" },
+        ],
+      },
+      bubbles: true, composed: true,
+    }));
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const cards = host.querySelectorAll(".section-card");
+    expect(cards).toHaveLength(2);
+    const labels = host.querySelectorAll(".member-label");
+    expect(labels).toHaveLength(2);
+    const texts = [...labels].map(l => l.textContent.trim()).sort();
+    expect(texts).toEqual(["Member A", "Member B"]);
+
+    tmpl.remove();
+  });
+
+  // ---- Image type detection -------------------------------------------------
+
+  it("{object-type} is 'image' for URI with image file extension", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "block-image-tmpl";
+    tmpl.innerHTML = `<div class="img-wrap" data-rdf-predicate="http://xmlns.com/foaf/0.1/depiction" data-type="{object-type}"></div>`;
+    document.body.appendChild(tmpl);
+
+    el.setAttribute("template-id", "block-image-tmpl");
+    fireRdfLoaded(el, [
+      { subject: "https://s", predicate: "http://xmlns.com/foaf/0.1/depiction", object: "https://example.org/photo.jpg" },
+    ]);
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    const wrap = host.querySelector(".img-wrap");
+    expect(wrap).not.toBeNull();
+    expect(wrap.getAttribute("data-type")).toBe("image");
+
+    tmpl.remove();
+  });
 });

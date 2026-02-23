@@ -500,6 +500,66 @@
     .guide-step { color: #7ab8e8; }
     .guide-arrow { color: #3a6fa8; font-weight: 700; }
 
+    /* ── Section sub-canvas ──────────────────────────────────────────── */
+    .section-sub-canvas {
+      margin: .2rem 0 .2rem 1.5rem;
+      border-left: 2px dashed #2a5a8c;
+      padding-left: .5rem;
+    }
+    .sub-block-list { display: flex; flex-direction: column; gap: .2rem; }
+    .sub-block-item {
+      display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
+      background: #111c2a; border: 1px solid #2a3e54;
+      border-radius: 4px; padding: .2rem .35rem;
+    }
+    .sub-block-type, .sub-block-predicate {
+      font-size: .74rem; padding: .18rem .35rem;
+      border: 1px solid #335; border-radius: 3px;
+      background: #1c2b3a; color: #cdd7e5;
+    }
+    .sub-block-path {
+      font-size: .74rem; padding: .18rem .35rem;
+      border: 1px solid #2a5a8c; border-radius: 3px;
+      background: #1c2b3a; color: #cdd7e5; width: 90px;
+    }
+    .sub-block-path::placeholder { color: #556; }
+    .sub-block-delete {
+      background: none; border: none; color: #c0392b;
+      cursor: pointer; font-size: .85rem; line-height: 1; padding: 0 .15rem;
+    }
+    .add-sub-btn {
+      font-size: .72rem; padding: .18rem .5rem;
+      background: #1a3a5c; border: 1px solid #2a5a8c;
+      color: #7aaad0; border-radius: 3px; cursor: pointer; margin-top: .2rem;
+    }
+    .add-sub-btn:hover { background: #2a4a6c; }
+
+    /* ── Custom block textarea area ──────────────────────────────────── */
+    .custom-block-area {
+      display: flex; flex-direction: column; gap: .2rem;
+      margin: .25rem 0 .1rem 1.5rem;
+    }
+    .custom-block-area label { font-size: .73rem; color: #7aaad0; }
+    .custom-block-html, .custom-block-css {
+      width: 100%; font-size: .75rem; font-family: monospace;
+      padding: .3rem .4rem; background: #111c2a; border: 1px solid #2a3e54;
+      border-radius: 3px; color: #cdd7e5; resize: vertical; min-height: 46px;
+    }
+    .custom-block-ext {
+      font-size: .75rem; padding: .22rem .4rem;
+      background: #111c2a; border: 1px solid #2a3e54;
+      border-radius: 3px; color: #cdd7e5;
+    }
+    .custom-block-ext::placeholder { color: #556; }
+
+    /* ── Property path input ─────────────────────────────────────────── */
+    .block-path-input {
+      flex: 1; font-size: .74rem; padding: .22rem .4rem;
+      background: #1c2b3a; border: 1px solid #2a5a8c;
+      border-radius: 3px; color: #cdd7e5; min-width: 120px;
+    }
+    .block-path-input::placeholder { color: #556; }
+
     /* ── Blocks builder mode (🧱 tab active) ────────────────────────── */
     body.blocks-mode .workspace { grid-template-columns: 270px 1fr; }
     body.blocks-mode .preview-panel { display: none; }
@@ -641,7 +701,13 @@
           <div class="palette-item" draggable="true" data-block-type="link-cards" title="Link cards in a flex grid — skos:member, hasPart">
             <span class="palette-icon">🃏</span><span>Link Cards</span>
           </div>
+          <div class="palette-item" draggable="true" data-block-type="section" title="Section/Card container — each match is a card; add sub-blocks inside">
+            <span class="palette-icon">▣</span><span>Section/Card</span>
+          </div>
           <div class="palette-section">Values</div>
+          <div class="palette-item" draggable="true" data-block-type="image" title="Image — renders &lt;img&gt; for image URIs">
+            <span class="palette-icon">🖼</span><span>Image</span>
+          </div>
           <div class="palette-item" draggable="true" data-block-type="date-field" title="Date/datetime with &lt;time&gt; element">
             <span class="palette-icon">📅</span><span>Date</span>
           </div>
@@ -657,6 +723,9 @@
           <div class="palette-section">Layout</div>
           <div class="palette-item" draggable="true" data-block-type="divider" title="Horizontal divider rule">
             <span class="palette-icon">─</span><span>Divider</span>
+          </div>
+          <div class="palette-item" draggable="true" data-block-type="custom" title="Custom HTML/CSS/JS block — add your own markup, styles and external scripts">
+            <span class="palette-icon">⟨/⟩</span><span>Custom</span>
           </div>
         </div>
         <!-- Canvas -->
@@ -880,7 +949,7 @@ function toCssClass(uri) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Value type detection (heuristics + XSD datatype URI when available)
-// Returns: "uri" | "datetime" | "date" | "integer" | "decimal" | "boolean" | "string"
+// Returns: "uri" | "image" | "datetime" | "date" | "integer" | "decimal" | "boolean" | "string"
 // ─────────────────────────────────────────────────────────────────────────────
 function detectValueType(value, datatype) {
   if (datatype) {
@@ -894,7 +963,12 @@ function detectValueType(value, datatype) {
     if (dt.includes('anyuri')) return 'uri';
     return 'string';
   }
-  if (isUri(value)) return 'uri';
+  if (isUri(value)) {
+    const clean = value.split('?')[0].split('#')[0];
+    const ext = clean.split('.').pop().toLowerCase();
+    if (['jpg','jpeg','png','gif','webp','svg','avif','bmp','ico'].includes(ext)) return 'image';
+    return 'uri';
+  }
   if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return 'datetime';
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return 'date';
   if (/^-?\d+$/.test(value.trim())) return 'integer';
@@ -907,85 +981,180 @@ function detectValueType(value, datatype) {
 // Block types: definition and HTML/CSS code generators
 // ─────────────────────────────────────────────────────────────────────────────
 const TYPE_ICONS = {
-  uri: '🔗', datetime: '📅', date: '📅',
+  uri: '🔗', image: '🖼️', datetime: '📅', date: '📅',
   integer: '🔢', decimal: '🔢', boolean: '✅', string: '💬',
 };
 
 const BLOCK_TYPES = {
-  heading:      { label: 'Heading',     icon: 'H1', suggestsFor: ['string'] },
-  subheading:   { label: 'Subheading',  icon: 'H3', suggestsFor: ['string'] },
-  description:  { label: 'Paragraph',  icon: '¶',  suggestsFor: ['string'] },
-  'tag-cloud':  { label: 'Tag Cloud',   icon: '🏷', suggestsFor: ['string', 'uri'], isList: true },
-  'link-cards': { label: 'Link Cards',  icon: '🃏', suggestsFor: ['uri'],           isList: true },
-  'date-field': { label: 'Date',        icon: '📅', suggestsFor: ['datetime', 'date'] },
-  'number-field':{ label: 'Number',     icon: '🔢', suggestsFor: ['integer', 'decimal'] },
-  'link-field': { label: 'Link',        icon: '🔗', suggestsFor: ['uri'] },
-  'kv-row':     { label: 'Key–Value',   icon: '⊟', suggestsFor: ['string', 'uri', 'datetime', 'date', 'integer', 'decimal', 'boolean'] },
-  divider:      { label: 'Divider',     icon: '─',  suggestsFor: [] },
+  heading:       { label: 'Heading',     icon: 'H1', suggestsFor: ['string'] },
+  subheading:    { label: 'Subheading',  icon: 'H3', suggestsFor: ['string'] },
+  description:   { label: 'Paragraph',  icon: '¶',  suggestsFor: ['string'] },
+  'tag-cloud':   { label: 'Tag Cloud',   icon: '🏷', suggestsFor: ['string', 'uri'], isList: true },
+  'link-cards':  { label: 'Link Cards',  icon: '🃏', suggestsFor: ['uri'],           isList: true },
+  image:         { label: 'Image',       icon: '🖼', suggestsFor: ['image', 'uri'] },
+  'date-field':  { label: 'Date',        icon: '📅', suggestsFor: ['datetime', 'date'] },
+  'number-field':{ label: 'Number',      icon: '🔢', suggestsFor: ['integer', 'decimal'] },
+  'link-field':  { label: 'Link',        icon: '🔗', suggestsFor: ['uri'] },
+  'kv-row':      { label: 'Key–Value',   icon: '⊟', suggestsFor: ['string', 'uri', 'datetime', 'date', 'integer', 'decimal', 'boolean'] },
+  section:       { label: 'Section/Card',icon: '▣',  suggestsFor: ['uri'], isContainer: true },
+  custom:        { label: 'Custom',      icon: '⟨/⟩', suggestsFor: [], isCustom: true },
+  divider:       { label: 'Divider',     icon: '─',  suggestsFor: [] },
 };
 
-function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '') {
-  // Build data-rdf-* filter attribute string
+function blockToHtmlCss(blockType, predicateUri, filterLang = '', filterType = '', pathStr = '', indent = '') {
+  // Use data-rdf-path when a multi-step path is given, otherwise data-rdf-predicate
+  const usePathMode = pathStr.trim().split(/\s+/).filter(Boolean).length > 1;
   const filterAttrs = [
-    predicateUri ? `\n     data-rdf-predicate="${escHtml(predicateUri)}"` : '',
-    filterLang   ? ` data-rdf-filter-lang="${escHtml(filterLang)}"` : '',
-    filterType   ? ` data-rdf-filter-type="${escHtml(filterType)}"` : '',
+    usePathMode
+      ? (pathStr ? `\n${indent}     data-rdf-path="${escHtml(pathStr.trim())}"` : '')
+      : (predicateUri ? `\n${indent}     data-rdf-predicate="${escHtml(predicateUri)}"` : ''),
+    filterLang ? ` data-rdf-filter-lang="${escHtml(filterLang)}"` : '',
+    filterType ? ` data-rdf-filter-type="${escHtml(filterType)}"` : '',
   ].join('');
 
   switch (blockType) {
     case 'heading':
       return {
-        html: `<h2 class="block-heading"${filterAttrs}>{object}</h2>`,
+        html: `${indent}<h2 class="block-heading"${filterAttrs}>{object}</h2>`,
         css:  `.block-heading { display: block; width: 100%; font-size: 1.6rem; font-weight: 700; color: #083d6b; margin: 0 0 .5rem; }`,
       };
     case 'subheading':
       return {
-        html: `<h3 class="block-subheading"${filterAttrs}>{object}</h3>`,
+        html: `${indent}<h3 class="block-subheading"${filterAttrs}>{object}</h3>`,
         css:  `.block-subheading { display: block; width: 100%; font-size: 1.1rem; font-weight: 600; color: #1a4f80; margin: 0 0 .4rem; }`,
       };
     case 'description':
       return {
-        html: `<p class="block-description"${filterAttrs}>{object}</p>`,
+        html: `${indent}<p class="block-description"${filterAttrs}>{object}</p>`,
         css:  `.block-description { display: block; width: 100%; color: #333; line-height: 1.65; margin: 0 0 1rem; font-size: .9rem; }`,
       };
     case 'tag-cloud':
       return {
-        html: `<span class="block-tag"\n     data-is-uri="{object-is-uri}"${filterAttrs}>\n  <span class="tag-text">{object}</span>\n  <a class="tag-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</span>`,
+        html: `${indent}<span class="block-tag"\n${indent}     data-is-uri="{object-is-uri}"${filterAttrs}>\n${indent}  <span class="tag-text">{object}</span>\n${indent}  <a class="tag-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n${indent}</span>`,
         css:  `.block-tag { display: inline-flex; align-items: center; background: #e3f0fb; border: 1px solid #90caf9; border-radius: 12px; padding: .22em .65em; font-size: .82rem; color: #0d47a1; }\n.block-tag[data-is-uri="false"] .tag-link { display: none; }\n.block-tag[data-is-uri="true"]  .tag-text { display: none; }\n.block-tag .tag-link { color: inherit; text-decoration: none; }\n.block-tag .tag-link:hover { text-decoration: underline; }`,
       };
     case 'link-cards':
       return {
-        html: `<div class="block-link-card"\n     data-is-uri="{object-is-uri}"${filterAttrs}>\n  <div class="card-body">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </div>\n</div>`,
+        html: `${indent}<div class="block-link-card"\n${indent}     data-is-uri="{object-is-uri}"${filterAttrs}>\n${indent}  <div class="card-body">\n${indent}    <span class="value-text">{object}</span>\n${indent}    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n${indent}  </div>\n${indent}</div>`,
         css:  `.block-link-card { display: flex; flex-direction: column; gap: .22rem; min-width: 150px; flex: 1 1 190px; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; }\n.block-link-card .value-link { color: #083d6b; font-weight: 600; text-decoration: none; }\n.block-link-card .value-link:hover { text-decoration: underline; }\n.block-link-card[data-is-uri="false"] .value-link { display: none; }\n.block-link-card[data-is-uri="true"]  .value-text { display: none; }`,
+      };
+    case 'image':
+      return {
+        html: `${indent}<div class="block-image-wrap"${filterAttrs}>\n${indent}  <img class="block-image" src="{object}" alt="{object-short}" loading="lazy" />\n${indent}</div>`,
+        css:  `.block-image-wrap { display: flex; align-items: flex-start; }\n.block-image { max-width: 100%; max-height: 240px; border-radius: 4px; object-fit: cover; border: 1px solid #ddd; }`,
       };
     case 'date-field':
       return {
-        html: `<div class="block-date"${filterAttrs}>\n  <time class="date-value" datetime="{object}" data-type="{object-type}">{object}</time>\n</div>`,
+        html: `${indent}<div class="block-date"${filterAttrs}>\n${indent}  <time class="date-value" datetime="{object}" data-type="{object-type}">{object}</time>\n${indent}</div>`,
         css:  `.block-date { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.block-date .date-value { color: #4a148c; font-variant-numeric: tabular-nums; }`,
       };
     case 'number-field':
       return {
-        html: `<div class="block-number"${filterAttrs}>\n  <span class="number-value" data-type="{object-type}">{object}</span>\n</div>`,
+        html: `${indent}<div class="block-number"${filterAttrs}>\n${indent}  <span class="number-value" data-type="{object-type}">{object}</span>\n${indent}</div>`,
         css:  `.block-number { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.block-number .number-value { color: #bf360c; font-weight: 700; font-variant-numeric: tabular-nums; }`,
       };
     case 'link-field':
       return {
-        html: `<div class="block-link"\n     data-is-uri="{object-is-uri}"${filterAttrs}>\n  <span class="value-text">{object}</span>\n  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n</div>`,
+        html: `${indent}<div class="block-link"\n${indent}     data-is-uri="{object-is-uri}"${filterAttrs}>\n${indent}  <span class="value-text">{object}</span>\n${indent}  <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n${indent}</div>`,
         css:  `.block-link { display: flex; align-items: center; gap: .5rem; font-size: .85rem; padding: .2rem 0; }\n.block-link .value-link { color: #1a6fa8; text-decoration: none; }\n.block-link .value-link:hover { text-decoration: underline; }\n.block-link[data-is-uri="false"] .value-link { display: none; }\n.block-link[data-is-uri="true"]  .value-text { display: none; }`,
       };
     case 'kv-row':
       return {
-        html: `<div class="block-kv"\n     data-is-uri="{object-is-uri}" data-type="{object-type}"${filterAttrs}>\n  <dt class="kv-label">{predicate-short}</dt>\n  <dd class="kv-value">\n    <span class="value-text">{object}</span>\n    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n  </dd>\n</div>`,
+        html: `${indent}<div class="block-kv"\n${indent}     data-is-uri="{object-is-uri}" data-type="{object-type}"${filterAttrs}>\n${indent}  <dt class="kv-label">{predicate-short}</dt>\n${indent}  <dd class="kv-value">\n${indent}    <span class="value-text">{object}</span>\n${indent}    <a class="value-link" href="{object}" target="_blank" rel="noopener">{object-short}</a>\n${indent}  </dd>\n${indent}</div>`,
         css:  `.block-kv { display: flex; align-items: baseline; gap: .5rem; font-size: .85rem; padding: .15rem 0; }\n.block-kv .kv-label { font-weight: 600; color: #555; font-size: .78rem; min-width: 100px; flex-shrink: 0; }\n.block-kv .kv-value { color: #222; margin: 0; word-break: break-word; }\n.block-kv .value-link { color: #1a6fa8; text-decoration: none; }\n.block-kv .value-link:hover { text-decoration: underline; }\n.block-kv[data-is-uri="false"] .value-link { display: none; }\n.block-kv[data-is-uri="true"]  .value-text { display: none; }`,
       };
     case 'divider':
       return {
-        html: '<hr class="block-divider" />',
+        html: `${indent}<hr class="block-divider" />`,
         css:  `.block-divider { border: none; border-top: 1px solid #e0e7ef; width: 100%; margin: .4rem 0; }`,
       };
+    // section and custom are handled by getBlockCode()
     default:
       return { html: '', css: '' };
   }
+}
+
+/**
+ * Returns a sub-scope predicate map for predicates reachable from the objects
+ * of a given parent predicate URI. Used to populate sub-block dropdowns.
+ * @param {string} parentPredUri
+ * @returns {Map<string, {count, example, type}>}
+ */
+function getSubScopePredicates(parentPredUri) {
+  const subjectUris = _allTriples
+    .filter(t => t.predicate === parentPredUri && isUri(t.object))
+    .map(t => t.object);
+  const result = new Map();
+  for (const t of _allTriples) {
+    if (!subjectUris.includes(t.subject)) continue;
+    if (!result.has(t.predicate)) {
+      result.set(t.predicate, { count: 0, example: null, type: 'string' });
+    }
+    const e = result.get(t.predicate);
+    e.count++;
+    if (!e.example) { e.example = t.object; e.type = detectValueType(t.object, t.objectDatatype); }
+  }
+  return result;
+}
+
+/**
+ * Returns the full predicate/path and filter values for a canvas block.
+ */
+function getBlockAttrs(block) {
+  return {
+    predUri:  block.querySelector('.block-predicate-sel')?.value ?? '',
+    fLang:    block.querySelector('.block-filter-lang')?.value.trim() ?? '',
+    fType:    block.querySelector('.block-filter-type')?.value ?? '',
+    pathStr:  block.querySelector('.block-path-input')?.value.trim() ?? '',
+  };
+}
+
+/**
+ * Generates { html, css } for a single canvas block element, handling
+ * all block types including section (with sub-blocks) and custom.
+ */
+function getBlockCode(block, commentPrefix = '') {
+  const blockType = block.dataset.blockType;
+  const { predUri, fLang, fType, pathStr } = getBlockAttrs(block);
+
+  if (blockType === 'custom') {
+    const customHtml = block.querySelector('.custom-block-html')?.value.trim() ?? '';
+    const customCss  = block.querySelector('.custom-block-css')?.value.trim() ?? '';
+    const extScript  = block.querySelector('.custom-block-ext')?.value.trim() ?? '';
+    const scriptTag  = extScript ? `\n<!-- External script for custom block -->\n<script src="${escHtml(extScript)}"></script>` : '';
+    return { html: customHtml + scriptTag, css: customCss };
+  }
+
+  if (blockType === 'section') {
+    const usePathMode = pathStr.split(/\s+/).filter(Boolean).length > 1;
+    const pathAttr    = usePathMode
+      ? (pathStr ? ` data-rdf-path="${escHtml(pathStr.trim())}"` : '')
+      : (predUri  ? ` data-rdf-predicate="${escHtml(predUri)}"` : '');
+    const langAttr = fLang ? ` data-rdf-filter-lang="${escHtml(fLang)}"` : '';
+    const typeAttr = fType ? ` data-rdf-filter-type="${escHtml(fType)}"` : '';
+
+    const subItems = [...block.querySelectorAll('.sub-block-item')];
+    const innerHtmlParts = [];
+    const innerCssParts  = [];
+    for (const item of subItems) {
+      const subType  = item.querySelector('.sub-block-type')?.value ?? '';
+      const subPred  = item.querySelector('.sub-block-predicate')?.value ?? '';
+      const subPath  = item.querySelector('.sub-block-path')?.value.trim() ?? '';
+      if (!subType) continue;
+      const { html: sh, css: sc } = blockToHtmlCss(subType, subPred, '', '', subPath, '  ');
+      if (sh) innerHtmlParts.push(sh);
+      if (sc) innerCssParts.push(sc);
+    }
+    const innerHtml = innerHtmlParts.length
+      ? '\n' + innerHtmlParts.join('\n') + '\n'
+      : '\n  <!-- drag sub-blocks here or add via + Sub-block -->\n';
+    return {
+      html: `<div class="block-section"${pathAttr}${langAttr}${typeAttr}>${innerHtml}</div>`,
+      css:  `.block-section { display: flex; flex-direction: column; gap: .4rem; border: 2px solid #a8c8e8; border-radius: 8px; padding: .75rem; background: #f0f7ff; width: 100%; }\n${innerCssParts.join('\n')}`,
+    };
+  }
+
+  return blockToHtmlCss(blockType, predUri, fLang, fType, pathStr);
 }
 
 function fillPlaceholders(html, triple) {
@@ -1015,8 +1184,8 @@ function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
   let bodyContent = '';
 
   if (mode === 'template') {
-    // Detect block-style template (has at least one data-rdf-predicate element)
-    const isBlockStyle = /<[^>]+data-rdf-predicate/.test(templateHtml);
+    // Detect block-style template (has at least one data-rdf-predicate or data-rdf-path element)
+    const isBlockStyle = /<[^>]+(data-rdf-predicate|data-rdf-path)/.test(templateHtml);
     let rendered;
     if (isBlockStyle) {
       rendered = renderBlockTemplate(templateHtml, triples);
@@ -1109,45 +1278,15 @@ function applyTokensToElement(el, triple) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Block-style template rendering for the preview iframe.
-// Mirrors the logic in rdf-display.js _renderBlockTemplate():
-// template is rendered ONCE; each [data-rdf-predicate] element is filled with
-// matching triples (repeated for lists, removed if no match).
+// Mirrors rdf-display.js _renderBlockTemplate (updated for paths & sub-blocks):
+// template rendered ONCE; [data-rdf-predicate] and [data-rdf-path] resolved
+// recursively with sub-block support.
 // ─────────────────────────────────────────────────────────────────────────────
 function renderBlockTemplate(templateHtml, triples) {
   const container = document.createElement('div');
   container.innerHTML = templateHtml;
-
-  const annotated = [...container.querySelectorAll('[data-rdf-predicate]')];
-  for (const el of annotated) {
-    const predicateUri = el.getAttribute('data-rdf-predicate');
-    const filterLang   = el.getAttribute('data-rdf-filter-lang') || null;
-    const filterType   = el.getAttribute('data-rdf-filter-type') || null;
-
-    el.removeAttribute('data-rdf-predicate');
-    el.removeAttribute('data-rdf-filter-lang');
-    el.removeAttribute('data-rdf-filter-type');
-
-    let matches = predicateUri
-      ? triples.filter(t => t.predicate === predicateUri)
-      : [...triples];
-    if (filterLang) matches = matches.filter(t => (t.objectLang ?? '') === filterLang);
-    if (filterType) matches = matches.filter(t => detectValueType(t.object ?? '', t.objectDatatype) === filterType);
-
-    if (matches.length === 0) { el.remove(); continue; }
-
-    // Keep a token-intact base for list copies
-    const base = el.cloneNode(true);
-    applyTokensToElement(el, matches[0]);
-
-    let ref = el;
-    for (let i = 1; i < matches.length; i++) {
-      const extra = base.cloneNode(true);
-      applyTokensToElement(extra, matches[i]);
-      if (ref.parentNode) ref.parentNode.insertBefore(extra, ref.nextSibling);
-      ref = extra;
-    }
-  }
-  // Clear remaining tokens using subject context
+  resolveAnnotatedElements(container, triples, _allTriples);
+  // Clear remaining tokens
   if (triples.length > 0) {
     applyTokensToElement(container, {
       subject: triples[0].subject, predicate: '', object: '',
@@ -1155,6 +1294,79 @@ function renderBlockTemplate(templateHtml, triples) {
     });
   }
   return container.innerHTML;
+}
+
+function resolveAnnotatedElements(container, scopeTriples, allTriples) {
+  const SELECTOR = '[data-rdf-predicate],[data-rdf-path]';
+  const allAnnotated = [...container.querySelectorAll(SELECTOR)];
+  const topLevel = allAnnotated.filter(el => {
+    let p = el.parentNode;
+    while (p && p !== container) {
+      if (p.hasAttribute && (p.hasAttribute('data-rdf-predicate') || p.hasAttribute('data-rdf-path'))) return false;
+      p = p.parentNode;
+    }
+    return true;
+  });
+  const subjectSet = [...new Set(scopeTriples.map(t => t.subject))];
+
+  for (const el of topLevel) {
+    const predUri    = el.getAttribute('data-rdf-predicate');
+    const pathStr    = el.getAttribute('data-rdf-path');
+    const filterLang = el.getAttribute('data-rdf-filter-lang') || null;
+    const filterType = el.getAttribute('data-rdf-filter-type') || null;
+    el.removeAttribute('data-rdf-predicate');
+    el.removeAttribute('data-rdf-path');
+    el.removeAttribute('data-rdf-filter-lang');
+    el.removeAttribute('data-rdf-filter-type');
+
+    let matches;
+    if (pathStr) {
+      const steps = pathStr.trim().split(/\s+/).filter(Boolean);
+      matches = resolvePropertyPath(allTriples, subjectSet, steps);
+    } else if (predUri) {
+      matches = scopeTriples.filter(t => t.predicate === predUri);
+    } else {
+      matches = [...scopeTriples];
+    }
+    if (filterLang) matches = matches.filter(t => (t.objectLang ?? '') === filterLang);
+    if (filterType) matches = matches.filter(t => detectValueType(t.object ?? '', t.objectDatatype) === filterType);
+
+    if (matches.length === 0) { el.remove(); continue; }
+
+    const base = el.cloneNode(true);
+    resolveInner(el, matches[0], allTriples);
+    let ref = el;
+    for (let i = 1; i < matches.length; i++) {
+      const extra = base.cloneNode(true);
+      resolveInner(extra, matches[i], allTriples);
+      if (ref.parentNode) ref.parentNode.insertBefore(extra, ref.nextSibling);
+      ref = extra;
+    }
+  }
+}
+
+function resolveInner(el, triple, allTriples) {
+  const objUri = triple.object ?? '';
+  if (isUri(objUri)) {
+    const innerTriples = allTriples.filter(t => t.subject === objUri);
+    resolveAnnotatedElements(el, innerTriples, allTriples);
+  } else {
+    resolveAnnotatedElements(el, [], allTriples);
+  }
+  applyTokensToElement(el, triple);
+}
+
+function resolvePropertyPath(allTriples, startSubjects, pathSteps) {
+  if (!pathSteps.length) return [];
+  let subjects = new Set(startSubjects.filter(Boolean));
+  for (let i = 0; i < pathSteps.length; i++) {
+    const pred = pathSteps[i];
+    const matches = allTriples.filter(t => subjects.has(t.subject) && t.predicate === pred);
+    if (i === pathSteps.length - 1) return matches;
+    subjects = new Set(matches.map(t => t.object).filter(o => isUri(o)));
+    if (!subjects.size) return [];
+  }
+  return [];
 }
 
 function escHtml(s) {
@@ -1203,7 +1415,9 @@ function populateProps(triples) {
 
     // Build type-specific HTML snippet based on value type
     let typeSnippet;
-    if (type === 'datetime' || type === 'date') {
+    if (type === 'image') {
+      typeSnippet = `<div class="triple ${cssClass}">\n  <img src="{object}" alt="{object-short}" loading="lazy" style="max-width:100%;max-height:200px;border-radius:4px" />\n</div>`;
+    } else if (type === 'datetime' || type === 'date') {
       typeSnippet = `<div class="triple ${cssClass}" data-type="{object-type}">\n  <span class="label">${escHtml(short)}</span>\n  <time class="value-date" datetime="{object}">{object}</time>\n</div>`;
     } else if (type === 'integer' || type === 'decimal') {
       typeSnippet = `<div class="triple ${cssClass}" data-type="{object-type}">\n  <span class="label">${escHtml(short)}</span>\n  <span class="value-number">{object}</span>\n</div>`;
@@ -1267,9 +1481,10 @@ function populateProps(triples) {
       const srt     = e.currentTarget.dataset.short.toLowerCase();
       // Auto-suggest the most appropriate block type
       let suggested = 'kv-row';
-      if (valType === 'datetime' || valType === 'date') suggested = 'date-field';
+      if (valType === 'image') suggested = 'image';
+      else if (valType === 'datetime' || valType === 'date') suggested = 'date-field';
       else if (valType === 'integer' || valType === 'decimal') suggested = 'number-field';
-      else if (valType === 'uri' && cnt > 1) suggested = 'link-cards';
+      else if (valType === 'uri' && cnt > 1) suggested = 'section';
       else if (valType === 'uri') suggested = 'link-field';
       else if (cnt > 1) suggested = 'tag-cloud';
       if (srt === 'title' || srt === 'name' || srt === 'label') suggested = 'heading';
@@ -1381,30 +1596,58 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
     return `<option value="${u}"${sel}>${s}</option>`;
   }).join('');
 
-  const typeOpts = ['','uri','datetime','date','integer','decimal','boolean','string'].map(t =>
+  const typeOpts = ['','uri','image','datetime','date','integer','decimal','boolean','string'].map(t =>
     `<option value="${t}"${filterType === t ? ' selected' : ''}>${t || '(any type)'}</option>`
   ).join('');
+
+  // For section block: compute sub-scope predicates and build section canvas
+  const isSectionBlock = blockType === 'section';
+  const isCustomBlock  = blockType === 'custom';
+
+  // Sub-scope predicates for section (predicates available under the chosen URI predicate)
+  let subScopeOptsHtml = '';
+  if (isSectionBlock && predicateUri) {
+    const subPreds = getSubScopePredicates(predicateUri);
+    subScopeOptsHtml = [...subPreds.keys()].map(uri => {
+      const e = subPreds.get(uri);
+      return `<option value="${escHtml(uri)}">${escHtml(shortenUri(uri))} (${e.count})</option>`;
+    }).join('');
+  }
 
   block.innerHTML = `
     <div class="canvas-block-main">
       <span class="block-drag-handle" title="Drag to reorder">⠿</span>
       <span class="block-type-icon">${def.icon}</span>
       <span class="block-type-label">${escHtml(def.label)}</span>
-      <select class="block-predicate-sel" title="Predicate this block applies to">
+      ${isCustomBlock ? '' : `<select class="block-predicate-sel" title="Predicate this block applies to">
         <option value="">(any predicate)</option>
         ${opts}
-      </select>
-      <button class="block-filter-toggle" title="Add language / type filter">⚙</button>
+      </select>`}
+      ${isCustomBlock ? '' : `<button class="block-filter-toggle" title="Add language / type / path filter">⚙</button>`}
       <button class="block-delete-btn" title="Remove block">✕</button>
     </div>
-    <div class="block-filter-row" style="display:none">
+    ${isCustomBlock ? '' : `<div class="block-filter-row" style="display:none">
       <label>Lang:</label>
       <input class="block-filter-sel block-filter-lang" list="lang-list" placeholder="en / fr / …"
              value="${escHtml(filterLang)}" style="width:4.5rem" />
       <label>Type:</label>
       <select class="block-filter-sel block-filter-type">${typeOpts}</select>
-      <span class="block-filter-hint">→ filters which triples this block uses</span>
-    </div>`;
+      <label style="margin-left:.5rem">Path:</label>
+      <input class="block-path-input" placeholder="pred1URI pred2URI …" title="Multi-hop property path (overrides predicate dropdown)" style="flex:1;min-width:140px" />
+      <span class="block-filter-hint">→ filters / traverses graph for this block</span>
+    </div>`}
+    ${isSectionBlock ? `<div class="section-sub-canvas">
+      <div class="sub-block-list"></div>
+      <button class="add-sub-btn">+ Sub-block</button>
+    </div>` : ''}
+    ${isCustomBlock ? `<div class="custom-block-area">
+      <label style="font-size:.78rem;color:#7aaad0">HTML template:</label>
+      <textarea class="custom-block-html" placeholder="<div class=&quot;custom&quot;>…</div>" rows="3"></textarea>
+      <label style="font-size:.78rem;color:#7aaad0">CSS (optional):</label>
+      <textarea class="custom-block-css" placeholder=".custom { … }" rows="2"></textarea>
+      <label style="font-size:.78rem;color:#7aaad0">External script URL (optional):</label>
+      <input class="custom-block-ext" type="url" placeholder="https://cdn.example.com/library.js" />
+    </div>` : ''}`;
 
   block.querySelector('.block-delete-btn').addEventListener('click', () => {
     block.remove();
@@ -1415,19 +1658,92 @@ function addBlockToCanvas(blockType, predicateUri = '', filterLang = '', filterT
     scheduleBlockPreview();
   });
 
-  block.querySelector('.block-filter-toggle').addEventListener('click', () => {
-    const row = block.querySelector('.block-filter-row');
-    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
-  });
+  if (!isCustomBlock) {
+    block.querySelector('.block-filter-toggle').addEventListener('click', () => {
+      const row = block.querySelector('.block-filter-row');
+      row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+    });
 
-  // Live preview on any change
-  block.querySelector('.block-predicate-sel').addEventListener('change', scheduleBlockPreview);
-  block.querySelector('.block-filter-lang').addEventListener('input', scheduleBlockPreview);
-  block.querySelector('.block-filter-type').addEventListener('change', scheduleBlockPreview);
+    // Live preview on any change
+    block.querySelector('.block-predicate-sel').addEventListener('change', e => {
+      // For sections, refresh sub-scope predicates when outer predicate changes
+      if (isSectionBlock) refreshSectionSubScope(block, e.target.value);
+      scheduleBlockPreview();
+    });
+    block.querySelector('.block-filter-lang').addEventListener('input',  scheduleBlockPreview);
+    block.querySelector('.block-filter-type').addEventListener('change', scheduleBlockPreview);
+    block.querySelector('.block-path-input').addEventListener('input',   scheduleBlockPreview);
+  } else {
+    // Custom block: live preview on textarea changes
+    block.querySelector('.custom-block-html').addEventListener('input', scheduleBlockPreview);
+    block.querySelector('.custom-block-css').addEventListener('input',  scheduleBlockPreview);
+  }
+
+  // Section: wire sub-block add button and initial sub-scope population
+  if (isSectionBlock) {
+    block.querySelector('.add-sub-btn').addEventListener('click', () => {
+      const outerPred = block.querySelector('.block-predicate-sel')?.value ?? '';
+      addSubBlockToSection(block, outerPred);
+    });
+    if (predicateUri) refreshSectionSubScope(block, predicateUri);
+  }
 
   setupCanvasBlockDrag(block);
   blockCanvas.appendChild(block);
   updateCanvasStatus();
+  scheduleBlockPreview();
+}
+
+/** Refreshes the sub-block predicate dropdowns for a section block. */
+function refreshSectionSubScope(sectionBlock, outerPredUri) {
+  if (!outerPredUri) return; // No outer predicate selected; leave sub-block dropdowns as-is
+  const subPreds = getSubScopePredicates(outerPredUri);
+  sectionBlock.querySelectorAll('.sub-block-predicate').forEach(sel => {
+    const prevVal = sel.value;
+    sel.innerHTML = `<option value="">(any predicate)</option>` +
+      [...subPreds.keys()].map(uri =>
+        `<option value="${escHtml(uri)}">${escHtml(shortenUri(uri))}</option>`
+      ).join('');
+    if ([...subPreds.keys()].includes(prevVal)) sel.value = prevVal;
+  });
+}
+
+/** Adds a sub-block item to a section canvas block. */
+function addSubBlockToSection(sectionBlock, outerPredUri = '', defaultType = '', defaultPred = '') {
+  const list = sectionBlock.querySelector('.sub-block-list');
+  if (!list) return;
+
+  const subPreds = outerPredUri ? getSubScopePredicates(outerPredUri) : _predicateMap;
+  const predOpts = [...subPreds.keys()].map(uri => {
+    const sel = uri === defaultPred ? ' selected' : '';
+    return `<option value="${escHtml(uri)}"${sel}>${escHtml(shortenUri(uri))}</option>`;
+  }).join('');
+
+  // Sub-block types (exclude section and custom for simplicity)
+  const typeOpts = Object.entries(BLOCK_TYPES)
+    .filter(([k]) => k !== 'section' && k !== 'custom')
+    .map(([k, v]) => {
+      const sel = k === (defaultType || 'kv-row') ? ' selected' : '';
+      return `<option value="${escHtml(k)}"${sel}>${escHtml(v.label)}</option>`;
+    }).join('');
+
+  const item = document.createElement('div');
+  item.className = 'sub-block-item';
+  item.innerHTML = `
+    <select class="sub-block-type" title="Block type">${typeOpts}</select>
+    <select class="sub-block-predicate" title="Predicate for this sub-block">
+      <option value="">(any)</option>
+      ${predOpts}
+    </select>
+    <input class="sub-block-path" placeholder="path…" title="Property path (multi-hop, space-separated)" style="width:90px" />
+    <button class="sub-block-delete" title="Remove">✕</button>`;
+
+  item.querySelector('.sub-block-delete').addEventListener('click', () => { item.remove(); scheduleBlockPreview(); });
+  item.querySelector('.sub-block-type').addEventListener('change', scheduleBlockPreview);
+  item.querySelector('.sub-block-predicate').addEventListener('change', scheduleBlockPreview);
+  item.querySelector('.sub-block-path').addEventListener('input', scheduleBlockPreview);
+
+  list.appendChild(item);
   scheduleBlockPreview();
 }
 
@@ -1495,11 +1811,8 @@ function liveGenerateBlockPreview() {
   ];
 
   for (const block of blocks) {
-    const blockType   = block.dataset.blockType;
-    const predUri     = block.querySelector('.block-predicate-sel')?.value ?? '';
-    const fLang       = block.querySelector('.block-filter-lang')?.value.trim() ?? '';
-    const fType       = block.querySelector('.block-filter-type')?.value ?? '';
-    const { html, css } = blockToHtmlCss(blockType, predUri, fLang, fType);
+    const blockType = block.dataset.blockType;
+    const { html, css } = getBlockCode(block);
     if (html) htmlParts.push(html);
     if (css)  { cssParts.push(`/* ${BLOCK_TYPES[blockType]?.label ?? blockType} */`); cssParts.push(css); cssParts.push(''); }
   }
@@ -1546,8 +1859,8 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
   const cssParts  = [
     `/* ── Generated by RDF Template Playground block editor ── */`,
     `/* Block-style template: each element targets a specific predicate           */`,
-    `/* (data-rdf-predicate). The rdf-display component renders this ONCE per     */`,
-    `/* subject — no duplicate cloning. Multi-valued predicates auto-repeat.      */`,
+    `/* (data-rdf-predicate / data-rdf-path). Rendered ONCE per subject;          */`,
+    `/* multi-valued predicates auto-repeat; sub-blocks resolve via object URI.   */`,
     `.rdf-template-host {`,
     `  display: flex;`,
     `  flex-wrap: wrap;`,
@@ -1562,18 +1875,15 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
   ];
 
   for (const block of blocks) {
-    const blockType   = block.dataset.blockType;
-    const predUri     = block.querySelector('.block-predicate-sel')?.value ?? '';
-    const fLang       = block.querySelector('.block-filter-lang')?.value.trim() ?? '';
-    const fType       = block.querySelector('.block-filter-type')?.value ?? '';
-    const { html, css } = blockToHtmlCss(blockType, predUri, fLang, fType);
+    const blockType = block.dataset.blockType;
+    const { html, css } = getBlockCode(block);
     if (html) htmlParts.push(html);
     if (css)  { cssParts.push(`/* ── ${BLOCK_TYPES[blockType]?.label ?? blockType} ── */`); cssParts.push(css); cssParts.push(''); }
   }
 
   htmlTA.value = (_selectedSubject
     ? `<!-- Block-style template for subject: ${escHtml(_selectedSubject)} -->\n`
-    : '<!-- Block-style template (data-rdf-predicate filtering) -->\n') + htmlParts.join('\n');
+    : '<!-- Block-style template (data-rdf-predicate / data-rdf-path filtering) -->\n') + htmlParts.join('\n');
   cssTA.value  = cssParts.join('\n');
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
@@ -1949,55 +2259,67 @@ function buildAiPrompt(predicateLines, resourceUrl, subjectUri) {
     ? `Subject URI: ${subjectUri}\n(Only the predicates/objects for this specific subject are listed below.)`
     : '(All subjects combined)';
   return `You are an expert HTML and CSS developer specialising in semantic web / RDF data visualisation.
-Generate a display template for the <rdf-display> web component using the NEW block-style format.
+Generate a display template for the <rdf-display> web component using the block-style format.
 
 ## How the block-style template system works
 
-IMPORTANT: Unlike the old system (one template clone per triple), the NEW system renders the template
-ONCE for a subject.  Each element with a \`data-rdf-predicate="<full-uri>"\` attribute is populated
-with the triples that match that specific predicate:
+The template is rendered ONCE per subject.
 
-- If 1 match  → the element is rendered once with that triple's values.
-- If N matches → the element is automatically repeated N times (list/multi-valued predicate).
-- If 0 matches → the element is silently removed from the output.
+**data-rdf-predicate** (single step):
+  Each element with a \`data-rdf-predicate="<full-uri>"\` attribute is populated with triples matching that predicate.
+  - 1 match  → rendered once.
+  - N matches → element is automatically repeated N times (list / multi-valued predicate).
+  - 0 matches → element is silently removed.
 
-Optional refinement attributes on each element:
+**data-rdf-path** (multi-hop property path):
+  Space-separated predicate URIs. The system traverses the graph:
+  step 1 finds objects of pred1 (must be URIs) → step 2 uses those as new subjects with pred2, etc.
+  Example: \`data-rdf-path="http://purl.org/dc/terms/creator http://xmlns.com/foaf/0.1/name"\`
+  retrieves the creator's name 2 hops away.
+
+**Sub-blocks (nested annotated elements)**:
+  When an outer element matches a URI predicate (e.g. skos:member), inner elements with
+  \`data-rdf-predicate\` are resolved relative to each matched object URI as the new subject.
+  This enables card-within-card nesting: the outer element wraps per-member content.
+
+Optional refinement attributes:
   data-rdf-filter-lang="<lang>"   – keep only triples with this language tag (e.g. "en")
-  data-rdf-filter-type="<type>"   – keep only triples of this inferred type
+  data-rdf-filter-type="<type>"   – keep only triples of this inferred type (uri|image|datetime|date|integer|decimal|boolean|string)
 
 ## Available {token} placeholders (replaced per matching triple)
 
-| Token              | Replaced with                                                      |
-|--------------------|--------------------------------------------------------------------|
-| {subject}          | Full subject URI                                                   |
-| {predicate}        | Full predicate URI                                                 |
-| {predicate-short}  | Short label  e.g. "title", "description"                           |
-| {predicate-class}  | CSS-safe class  e.g. "title", "description"                        |
-| {object}           | Full object value (URI or literal string)                          |
-| {object-short}     | Short label for URI objects                                        |
-| {object-is-uri}    | "true" if object is a URI, "false" if it is a literal              |
-| {object-type}      | Inferred value type: uri | datetime | date | integer | decimal | boolean | string |
-| {object-datatype}  | Full XSD datatype URI (empty for plain literals)                   |
-| {object-lang}      | Language tag e.g. "en" (empty if none)                            |
+| Token              | Replaced with                                                               |
+|--------------------|-----------------------------------------------------------------------------|
+| {subject}          | Full subject URI                                                             |
+| {predicate}        | Full predicate URI                                                           |
+| {predicate-short}  | Short label  e.g. "title", "description"                                    |
+| {predicate-class}  | CSS-safe class  e.g. "title", "description"                                 |
+| {object}           | Full object value (URI or literal string)                                   |
+| {object-short}     | Short label for URI objects                                                  |
+| {object-is-uri}    | "true" if object is a URI, "false" if it is a literal                       |
+| {object-type}      | uri \\| image \\| datetime \\| date \\| integer \\| decimal \\| boolean \\| string |
+| {object-datatype}  | Full XSD datatype URI (empty for plain literals)                            |
+| {object-lang}      | Language tag e.g. "en" (empty if none)                                      |
 
 ## Rules for value types
 
+- **image** → <img src="{object}" alt="{object-short}" /> (detected from URI extension)
 - **uri** → <a href="{object}">{object-short}</a>
 - **datetime / date** → <time datetime="{object}">{object}</time>
 - **integer / decimal** → <span class="number-value">{object}</span>
 - **boolean** → <span data-value="{object}">{object}</span>
 - **string** → <span> or <p> as appropriate
-- Use data-is-uri="{object-is-uri}" on the outer element and CSS attribute selectors:
+- Use data-is-uri="{object-is-uri}" on outer elements and CSS:
     [data-is-uri="true"]  .value-text { display: none; }
     [data-is-uri="false"] .value-link { display: none; }
 
 ## Rules for list predicates (marked [LIST])
 
 Multi-valued predicates create repeated sibling elements automatically.
-CSS layout on .rdf-template-host handles their arrangement:
-- String lists → inline-flex chips
-- URI lists → flex: 1 1 Npx link cards inside flex-wrap
+- String/tag lists → inline-flex chips
+- URI lists → flex: 1 1 Npx link cards inside flex-wrap on .rdf-template-host
 - Date/number lists → block stack
+- URI lists pointing to sub-resources → use sub-blocks inside a wrapper element
 
 ## Resource being visualised
 URL: ${resourceUrl || '(unknown)'}
@@ -2011,23 +2333,32 @@ ${predicateLines}
 ## Your task
 
 Generate a complete, visually attractive block-style template for this specific data.
-Use the correct element, class, and data-rdf-predicate for EACH predicate.
+Use data-rdf-predicate (or data-rdf-path for multi-hop) for EACH predicate.
+Use sub-blocks (nested annotated elements) for URI-valued list predicates that point to
+sub-resources with their own predicates.
 
 ## Required output — return EXACTLY these two fenced code blocks and NOTHING else
 
 \`\`\`html
-<!-- Block-style template: rendered ONCE per subject; each element targets one predicate -->
+<!-- Block-style template: rendered ONCE per subject -->
 <h2 class="block-heading"
     data-rdf-predicate="http://example.org/title">{object}</h2>
 <p class="block-description"
    data-rdf-predicate="http://example.org/description">{object}</p>
-<!-- List predicate (repeated automatically): -->
-<div class="block-link-card"
-     data-rdf-predicate="http://example.org/member"
-     data-is-uri="{object-is-uri}">
-  <a class="value-link" href="{object}">{object-short}</a>
-  <span class="value-text">{object}</span>
+<!-- List predicate with sub-blocks (each member URI resolved for its label): -->
+<div class="block-section"
+     data-rdf-predicate="http://example.org/member">
+  <h3 class="member-label"
+      data-rdf-predicate="http://www.w3.org/2000/01/rdf-schema#label">{object}</h3>
+  <a class="member-link" href="{object}">{object-short}</a>
 </div>
+<!-- Simple list predicate (repeated automatically): -->
+<span class="block-tag"
+      data-is-uri="{object-is-uri}"
+      data-rdf-predicate="http://example.org/subject">
+  <span class="tag-text">{object}</span>
+  <a class="tag-link" href="{object}">{object-short}</a>
+</span>
 <!-- … one element per predicate … -->
 \`\`\`
 
@@ -2042,10 +2373,15 @@ Use the correct element, class, and data-rdf-predicate for EACH predicate.
 .block-heading { display: block; width: 100%; font-size: 1.6rem; font-weight: 700; color: #083d6b; margin: 0 0 .5rem; }
 /* Description */
 .block-description { display: block; width: 100%; color: #333; line-height: 1.65; margin: 0 0 1rem; }
-/* Link cards (list) */
-.block-link-card { flex: 1 1 190px; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; }
-.block-link-card[data-is-uri="false"] .value-link { display: none; }
-.block-link-card[data-is-uri="true"]  .value-text { display: none; }
+/* Section / sub-resource card */
+.block-section { display: flex; flex-direction: column; gap: .3rem; border: 1px solid #c5daf0; border-radius: 6px; padding: .55rem .7rem; background: #f5f9ff; flex: 1 1 180px; }
+.block-section .member-label { margin: 0; font-size: .9rem; font-weight: 600; color: #083d6b; }
+.block-section .member-link { font-size: .8rem; color: #1a6fa8; text-decoration: none; }
+/* Tag chips */
+.block-tag { display: inline-flex; align-items: center; background: #e3f0fb; border: 1px solid #90caf9; border-radius: 12px; padding: .2em .6em; font-size: .82rem; color: #0d47a1; }
+.block-tag[data-is-uri="false"] .tag-link { display: none; }
+.block-tag[data-is-uri="true"]  .tag-text { display: none; }
+.block-tag .tag-link { color: inherit; text-decoration: none; }
 /* … one rule set per predicate … */
 \`\`\``;
 }

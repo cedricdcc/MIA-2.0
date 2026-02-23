@@ -12,13 +12,20 @@
  *     LEGACY MODE (no data-rdf-predicate attributes in the template):
  *       The template is cloned once per triple; all {token} placeholders are replaced.
  *
- *     BLOCK MODE (at least one element with data-rdf-predicate="<full-predicate-uri>"):
+ *     BLOCK MODE (at least one element with data-rdf-predicate="<full-predicate-uri>"
+ *                 OR data-rdf-path="<pred1URI> <pred2URI> …" for multi-hop paths):
  *       The template is rendered ONCE for the full triple set.  Each annotated element
- *       is populated with the first triple that matches its predicate, and automatically
- *       repeated for additional matches (list-valued predicates).  Elements with no
- *       matching triples are silently removed.  Optional refinement attributes:
+ *       is resolved against the triple set at its nesting scope:
+ *         • data-rdf-predicate – direct single-step predicate match
+ *         • data-rdf-path      – space-separated predicate URIs; multi-hop traversal
+ *                                always starts from the subjects in the current scope
+ *       Nested annotated elements (sub-blocks) are resolved using the matched object
+ *       URI as the new subject scope, enabling cards-within-cards etc.
+ *       Multi-valued predicates / path results automatically repeat the element.
+ *       Elements with no matching triples are silently removed.
+ *       Optional refinement attributes:
  *         data-rdf-filter-lang="<lang>"   e.g. "en"
- *         data-rdf-filter-type="<type>"   one of uri|datetime|date|integer|decimal|boolean|string
+ *         data-rdf-filter-type="<type>"   one of uri|image|datetime|date|integer|decimal|boolean|string
  *
  *     Supported {token} placeholders in both modes:
  *       {subject}, {predicate}, {predicate-short}, {predicate-class},
@@ -30,7 +37,7 @@
  *                      into the shadow root so it can style the cloned template content.
  *
  * Events listened for (bubbling from slotted children):
- *   rdf-loaded  – sets internal `triples` and triggers re-render
+ *   rdf-loaded  – sets internal `triples` / `_allTriples` and triggers re-render
  *   rdf-error   – displays the error message
  *
  * Usage – composition with rdf-adapter:
@@ -165,6 +172,8 @@ export class RdfDisplay extends LitElement {
      */
     templateStyles: { type: String, attribute: "template-styles" },
     _error: { state: true },
+    /** Full unfiltered graph (from rdf-loaded.allTriples) — used for property-path resolution. */
+    _allTriples: { state: true },
   };
 
   // ---------------------------------------------------------------------------
@@ -178,6 +187,7 @@ export class RdfDisplay extends LitElement {
     this.templateId = null;
     this.templateStyles = null;
     this._error = null;
+    this._allTriples = null;
 
     this._handleRdfLoaded = this._handleRdfLoaded.bind(this);
     this._handleRdfError = this._handleRdfError.bind(this);
@@ -206,6 +216,9 @@ export class RdfDisplay extends LitElement {
   _handleRdfLoaded(event) {
     this._error = null;
     this.triples = event.detail?.triples ?? [];
+    // allTriples (full unfiltered graph) is used for property-path resolution in block mode.
+    // Falls back to triples when not provided (e.g. when triples property is set directly).
+    this._allTriples = event.detail?.allTriples ?? null;
   }
 
   _handleRdfError(event) {
@@ -332,9 +345,9 @@ export class RdfDisplay extends LitElement {
       return;
     }
 
-    // ── Block mode: template has at least one [data-rdf-predicate] element ──
-    if (tmpl.content.querySelector("[data-rdf-predicate]")) {
-      _renderBlockTemplate(host, tmpl, this.triples);
+    // ── Block mode: template has at least one [data-rdf-predicate] or [data-rdf-path] element ──
+    if (tmpl.content.querySelector("[data-rdf-predicate],[data-rdf-path]")) {
+      _renderBlockTemplate(host, tmpl, this.triples, this._allTriples ?? this.triples);
       return;
     }
 
@@ -408,7 +421,13 @@ function _detectObjectType(value, datatype) {
     if (dt.includes("anyuri")) return "uri";
     return "string";
   }
-  if (isUri(value)) return "uri";
+  if (isUri(value)) {
+    // Auto-detect image URLs by file extension
+    const clean = value.split("?")[0].split("#")[0];
+    const ext = clean.split(".").pop().toLowerCase();
+    if (["jpg","jpeg","png","gif","webp","svg","avif","bmp","ico"].includes(ext)) return "image";
+    return "uri";
+  }
   if (/^\d{4}-\d{2}-\d{2}T/.test(value)) return "datetime";
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return "date";
   if (/^-?\d+$/.test(value.trim())) return "integer";
@@ -510,68 +529,20 @@ function _applyTokensToElement(el, tokenMap) {
 }
 
 // ---------------------------------------------------------------------------
-// Block-template rendering
+// Block-template rendering (replaces simple loop with recursive sub-block support)
 //
-// Renders the template ONCE for the full triple set instead of once per triple.
-// Each element annotated with [data-rdf-predicate="<uri>"] is populated with
-// the subset of triples that match that predicate (and any optional refinements
-// via data-rdf-filter-lang / data-rdf-filter-type).  Multi-valued predicates
-// automatically repeat the element as sibling copies.  Elements with no
-// matching triples are silently removed.  Any remaining {token} placeholders
-// in structural (non-annotated) elements are cleared using the subject of the
-// first triple as context.
+// _renderBlockTemplate – entry point; renders template ONCE for the scope.
+// _resolveAnnotatedElements – recursively resolves [data-rdf-predicate] and
+//   [data-rdf-path] elements within a container.
+// _resolveInner – fills tokens on a matched element and recurses into its
+//   annotated children using the matched object URI as the new subject scope.
+// _resolvePropertyPath – multi-hop property path traversal through the graph.
 // ---------------------------------------------------------------------------
 
-function _renderBlockTemplate(host, tmpl, triples) {
+function _renderBlockTemplate(host, tmpl, triples, allTriples) {
   const clone = tmpl.content.cloneNode(true);
 
-  // Snapshot annotated elements before any DOM mutations (avoid live-list issues)
-  const annotated = [...clone.querySelectorAll("[data-rdf-predicate]")];
-
-  for (const el of annotated) {
-    const predicateUri = el.getAttribute("data-rdf-predicate");
-    const filterLang   = el.getAttribute("data-rdf-filter-lang") || null;
-    const filterType   = el.getAttribute("data-rdf-filter-type") || null;
-
-    // Remove filter attributes so they don't appear in the rendered output
-    el.removeAttribute("data-rdf-predicate");
-    el.removeAttribute("data-rdf-filter-lang");
-    el.removeAttribute("data-rdf-filter-type");
-
-    // Build the matching set
-    let matches = predicateUri
-      ? triples.filter((t) => t.predicate === predicateUri)
-      : [...triples];
-    if (filterLang)
-      matches = matches.filter((t) => (t.objectLang ?? "") === filterLang);
-    if (filterType)
-      matches = matches.filter(
-        (t) =>
-          _detectObjectType(t.object ?? "", t.objectDatatype ?? null) === filterType
-      );
-
-    if (matches.length === 0) {
-      el.remove();
-      continue;
-    }
-
-    // Keep a base clone (tokens intact) for generating additional list copies
-    const baseClone = el.cloneNode(true);
-
-    // Populate the first match in-place
-    _applyTokensToElement(el, _buildTokenMap(matches[0]));
-
-    // Clone from the base (still has raw tokens) and insert for each extra match
-    let insertRef = el;
-    for (let i = 1; i < matches.length; i++) {
-      const extra = baseClone.cloneNode(true);
-      _applyTokensToElement(extra, _buildTokenMap(matches[i]));
-      if (insertRef.parentNode) {
-        insertRef.parentNode.insertBefore(extra, insertRef.nextSibling);
-      }
-      insertRef = extra;
-    }
-  }
+  _resolveAnnotatedElements(clone, triples, allTriples);
 
   // Clear any remaining {token} placeholders in structural/layout elements
   if (triples.length > 0) {
@@ -590,6 +561,142 @@ function _renderBlockTemplate(host, tmpl, triples) {
   }
 
   host.appendChild(clone);
+}
+
+/**
+ * Processes all top-level annotated elements ([data-rdf-predicate] or
+ * [data-rdf-path]) within `container`, leaving nested annotated elements
+ * to be resolved recursively when their parent is filled.
+ *
+ * @param {DocumentFragment|Element} container
+ * @param {Array} scopeTriples  – triples at the current scope (subject-filtered)
+ * @param {Array} allTriples    – full graph (for property-path resolution)
+ */
+function _resolveAnnotatedElements(container, scopeTriples, allTriples) {
+  const SELECTOR = "[data-rdf-predicate],[data-rdf-path]";
+
+  // Collect ALL annotated descendants, then keep only top-level ones
+  // (i.e. not already nested inside another annotated element in this container).
+  const allAnnotated = [...container.querySelectorAll(SELECTOR)];
+  const topLevel = allAnnotated.filter(el => {
+    let p = el.parentNode;
+    while (p && p !== container) {
+      if (
+        p.hasAttribute &&
+        (p.hasAttribute("data-rdf-predicate") || p.hasAttribute("data-rdf-path"))
+      ) {
+        return false; // ancestor is annotated → skip; handled in recursive call
+      }
+      p = p.parentNode;
+    }
+    return true;
+  });
+
+  // Build the set of subjects at the current scope for path resolution
+  const subjectSet = [...new Set(scopeTriples.map(t => t.subject))];
+
+  for (const el of topLevel) {
+    const predUri    = el.getAttribute("data-rdf-predicate");
+    const pathStr    = el.getAttribute("data-rdf-path");
+    const filterLang = el.getAttribute("data-rdf-filter-lang") || null;
+    const filterType = el.getAttribute("data-rdf-filter-type") || null;
+
+    // Strip annotation attrs so they don't leak into the rendered output
+    el.removeAttribute("data-rdf-predicate");
+    el.removeAttribute("data-rdf-path");
+    el.removeAttribute("data-rdf-filter-lang");
+    el.removeAttribute("data-rdf-filter-type");
+
+    // ── Build candidate match set ──
+    let matches;
+    if (pathStr) {
+      // Multi-hop property path: space-separated predicate URIs
+      const steps = pathStr.trim().split(/\s+/).filter(Boolean);
+      matches = _resolvePropertyPath(allTriples, subjectSet, steps);
+    } else if (predUri) {
+      matches = scopeTriples.filter(t => t.predicate === predUri);
+    } else {
+      matches = [...scopeTriples];
+    }
+
+    // Apply optional refinement filters
+    if (filterLang)
+      matches = matches.filter(t => (t.objectLang ?? "") === filterLang);
+    if (filterType)
+      matches = matches.filter(
+        t => _detectObjectType(t.object ?? "", t.objectDatatype ?? null) === filterType
+      );
+
+    if (matches.length === 0) { el.remove(); continue; }
+
+    // Keep a raw-token clone for list repetition BEFORE any filling
+    const baseClone = el.cloneNode(true);
+
+    // Fill first match (and recurse into its sub-blocks)
+    _resolveInner(el, matches[0], allTriples);
+
+    // Repeat from the base clone for each additional match
+    let insertRef = el;
+    for (let i = 1; i < matches.length; i++) {
+      const extra = baseClone.cloneNode(true);
+      _resolveInner(extra, matches[i], allTriples);
+      if (insertRef.parentNode) {
+        insertRef.parentNode.insertBefore(extra, insertRef.nextSibling);
+      }
+      insertRef = extra;
+    }
+  }
+}
+
+/**
+ * Fills tokens on `el` for a single matched triple and recursively resolves
+ * any annotated sub-elements using the match's object URI as the new subject scope.
+ *
+ * @param {Element} el
+ * @param {Object}  triple
+ * @param {Array}   allTriples
+ */
+function _resolveInner(el, triple, allTriples) {
+  const objUri = triple.object ?? "";
+  if (isUri(objUri)) {
+    // Resolve inner annotated elements with the matched object as the new subject scope
+    const innerTriples = allTriples.filter(t => t.subject === objUri);
+    _resolveAnnotatedElements(el, innerTriples, allTriples);
+  } else {
+    // Object is a literal — any inner annotated elements have no subject scope
+    _resolveAnnotatedElements(el, [], allTriples);
+  }
+  // Apply tokens AFTER inner blocks have been resolved (token fill is safe now)
+  _applyTokensToElement(el, _buildTokenMap(triple));
+}
+
+/**
+ * Resolves a multi-hop property path through the graph.
+ * path = [pred1, pred2, …] starting from `startSubjects`.
+ * Returns the final-step matching triples.
+ *
+ * @param {Array}  allTriples
+ * @param {Array}  startSubjects  – array of subject URI strings
+ * @param {Array}  pathSteps      – array of predicate URI strings
+ * @returns {Array}
+ */
+function _resolvePropertyPath(allTriples, startSubjects, pathSteps) {
+  if (!pathSteps.length) return [];
+  let subjects = new Set(startSubjects.filter(Boolean));
+
+  for (let i = 0; i < pathSteps.length; i++) {
+    const pred = pathSteps[i];
+    const matches = allTriples.filter(
+      t => subjects.has(t.subject) && t.predicate === pred
+    );
+    if (i === pathSteps.length - 1) {
+      return matches; // Final step — return the matched triples
+    }
+    // Intermediate step — update subjects to the URI objects
+    subjects = new Set(matches.map(t => t.object).filter(o => isUri(o)));
+    if (!subjects.size) return []; // Dead-end path
+  }
+  return [];
 }
 
 // ---------------------------------------------------------------------------

@@ -92,7 +92,8 @@ export class RdfAdapter extends HTMLElement {
     const subjectFilter = this.getAttribute("subject") ?? null;
 
     try {
-      const allTriples = [];
+      const displayTriples = []; // subject-filtered (for rendering & display)
+      const fullTriples    = []; // all parsed triples (for property-path resolution)
 
       for (const url of urls) {
         if (signal.aborted) break;
@@ -104,14 +105,17 @@ export class RdfAdapter extends HTMLElement {
           if (signal.aborted) break;
 
           for (const quad of quads) {
-            if (subjectFilter && quad.subject.value !== subjectFilter) continue;
-            allTriples.push({
+            const triple = {
               subject: quad.subject.value,
               predicate: quad.predicate.value,
               object: quad.object.value,
               objectDatatype: quad.object.datatype?.value ?? null,
               objectLang: quad.object.language ?? null,
-            });
+            };
+            fullTriples.push(triple);
+            if (!subjectFilter || triple.subject === subjectFilter) {
+              displayTriples.push(triple);
+            }
           }
         } catch (err) {
           if (!signal.aborted) {
@@ -129,10 +133,10 @@ export class RdfAdapter extends HTMLElement {
 
       if (!signal.aborted) {
         hideLoading(this._root);
-        renderTriples(this._root, allTriples);
+        renderTriples(this._root, displayTriples);
         this.dispatchEvent(
           new CustomEvent("rdf-loaded", {
-            detail: { triples: allTriples },
+            detail: { triples: displayTriples, allTriples: fullTriples },
             bubbles: true,
             composed: true,
           })
