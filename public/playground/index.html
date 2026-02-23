@@ -1121,7 +1121,7 @@ function getBlockCode(block, commentPrefix = '') {
     const customHtml = block.querySelector('.custom-block-html')?.value.trim() ?? '';
     const customCss  = block.querySelector('.custom-block-css')?.value.trim() ?? '';
     const extScript  = block.querySelector('.custom-block-ext')?.value.trim() ?? '';
-    const scriptTag  = extScript ? `\n<!-- External script for custom block -->\n<script src="${escHtml(extScript)}"></script>` : '';
+    const scriptTag  = extScript ? `\n<!-- External script for custom block -->\n<script src="${escHtml(extScript)}"><\/script>` : '';
     return { html: customHtml + scriptTag, css: customCss };
   }
 
