@@ -9,7 +9,7 @@
     Signpost an RDF description for this page.
     The <rdf-adapter> element will pick this up automatically.
   -->
-  <link rel="describedby" href="/rdf-data/example.ttl" type="text/turtle" />
+  <link rel="describedby" href="./rdf-data/example.ttl" type="text/turtle" />
 
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
@@ -32,14 +32,14 @@
 
   <p style="background:#e8f4fd;border-left:4px solid #1a6fa8;padding:.6rem 1rem;border-radius:0 4px 4px 0;font-size:.85rem;">
     💡 <strong>MarineInfo collection template demo:</strong>
-    <a href="/templates/marineinfo-collection.html">templates/marineinfo-collection.html</a>
+    <a href="./templates/marineinfo-collection.html">templates/marineinfo-collection.html</a>
     — shows how to use <code>template-id</code> + <code>template-styles</code> with
     IMIS/VLIZ-style RDF (keyword chips, dataset card grid, person badges).
   </p>
 
   <p style="background:#e8f5e9;border-left:4px solid #2e7d32;padding:.6rem 1rem;border-radius:0 4px 4px 0;font-size:.85rem;">
     🧪 <strong>Template Playground:</strong>
-    <a href="/playground/">playground/</a>
+    <a href="./playground/">playground/</a>
     — fetch any RDF URL, browse its properties, edit a custom template in real-time, preview all display modes, and download the result.
   </p>
 
@@ -58,10 +58,10 @@
   <h2>2. &lt;rdf-display&gt; – list mode (default)</h2>
   <section>
     <pre>&lt;rdf-display&gt;
-  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+  &lt;rdf-adapter src="./rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
 &lt;/rdf-display&gt;</pre>
     <rdf-display>
-      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+      <rdf-adapter src="./rdf-data/example.ttl"></rdf-adapter>
     </rdf-display>
   </section>
 
@@ -71,10 +71,10 @@
   <h2>3. &lt;rdf-display&gt; – grid mode</h2>
   <section>
     <pre>&lt;rdf-display display-mode="grid"&gt;
-  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+  &lt;rdf-adapter src="./rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
 &lt;/rdf-display&gt;</pre>
     <rdf-display display-mode="grid">
-      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+      <rdf-adapter src="./rdf-data/example.ttl"></rdf-adapter>
     </rdf-display>
   </section>
 
@@ -84,10 +84,10 @@
   <h2>4. &lt;rdf-display&gt; – table mode</h2>
   <section>
     <pre>&lt;rdf-display display-mode="table"&gt;
-  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+  &lt;rdf-adapter src="./rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
 &lt;/rdf-display&gt;</pre>
     <rdf-display display-mode="table">
-      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+      <rdf-adapter src="./rdf-data/example.ttl"></rdf-adapter>
     </rdf-display>
   </section>
 
@@ -102,10 +102,10 @@
 &lt;/template&gt;
 
 &lt;rdf-display template-id="triple-card"&gt;
-  &lt;rdf-adapter src="/rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
+  &lt;rdf-adapter src="./rdf-data/example.ttl"&gt;&lt;/rdf-adapter&gt;
 &lt;/rdf-display&gt;</pre>
     <rdf-display template-id="triple-card">
-      <rdf-adapter src="/rdf-data/example.ttl"></rdf-adapter>
+      <rdf-adapter src="./rdf-data/example.ttl"></rdf-adapter>
     </rdf-display>
   </section>
 
@@ -116,13 +116,13 @@
   <section>
     <pre>&lt;rdf-display display-mode="table"&gt;
   &lt;rdf-adapter
-    src="/rdf-data/example.ttl"
+    src="./rdf-data/example.ttl"
     subject="https://example.org/dataset/1"
   &gt;&lt;/rdf-adapter&gt;
 &lt;/rdf-display&gt;</pre>
     <rdf-display display-mode="table">
       <rdf-adapter
-        src="/rdf-data/example.ttl"
+        src="./rdf-data/example.ttl"
         subject="https://example.org/dataset/1"
       ></rdf-adapter>
     </rdf-display>
