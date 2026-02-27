@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RDF Adapter Demo</title>
+  <title>MIA RDF + Lens Demo</title>
 
   <!--
     Signpost an RDF description for this page.
@@ -26,21 +26,28 @@
       <span>{object}</span>
     </div>
   </template>
+
+  <template id="lens-card">
+    <article style="border:1px solid #d6e2ee;border-radius:8px;padding:1rem;background:#fff;">
+      <h3 style="margin:0 0 .5rem 0">{lens:title}</h3>
+      <p style="margin:0 0 .5rem 0;color:#4d6378">{lens:description}</p>
+      <small>Created: {lens:created}</small>
+    </article>
+  </template>
 </head>
 <body>
-  <h1>MIA 2.0 – RDF Adapter &amp; Display Demo</h1>
+  <h1>MIA 2.0 – RDF Adapter, Lenses &amp; Templates</h1>
 
   <p style="background:#e8f4fd;border-left:4px solid #1a6fa8;padding:.6rem 1rem;border-radius:0 4px 4px 0;font-size:.85rem;">
-    💡 <strong>MarineInfo collection template demo:</strong>
+    💡 <strong>Lens-first template examples:</strong>
+    <a href="./templates/index.html">templates/index.html</a> and
     <a href="./templates/marineinfo-collection.html">templates/marineinfo-collection.html</a>
-    — shows how to use <code>template-id</code> + <code>template-styles</code> with
-    IMIS/VLIZ-style RDF (keyword chips, dataset card grid, person badges).
   </p>
 
   <p style="background:#e8f5e9;border-left:4px solid #2e7d32;padding:.6rem 1rem;border-radius:0 4px 4px 0;font-size:.85rem;">
     🧪 <strong>Template Playground:</strong>
     <a href="./playground/">playground/</a>
-    — fetch any RDF URL, browse its properties, edit a custom template in real-time, preview all display modes, and download the result.
+    — fetch RDF → inspect store → generate/edit SHACL → extract lens flat object → preview template from lens data only.
   </p>
 
   <!-- ============================================================
@@ -124,6 +131,22 @@
       <rdf-adapter
         src="./rdf-data/example.ttl"
         subject="https://example.org/dataset/1"
+      ></rdf-adapter>
+    </rdf-display>
+  </section>
+
+  <h2>7. &lt;rdf-display&gt; – lens-object template</h2>
+  <section>
+    <pre>&lt;rdf-display template-id="lens-card"&gt;
+  &lt;rdf-adapter
+    src="./rdf-data/example.ttl"
+    shape-src="./rdf-data/example-shape.ttl"
+  &gt;&lt;/rdf-adapter&gt;
+&lt;/rdf-display&gt;</pre>
+    <rdf-display template-id="lens-card">
+      <rdf-adapter
+        src="./rdf-data/example.ttl"
+        shape-src="./rdf-data/example-shape.ttl"
       ></rdf-adapter>
     </rdf-display>
   </section>

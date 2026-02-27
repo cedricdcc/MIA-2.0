@@ -22,6 +22,7 @@
 
 import { fetchRdf } from "../utils/rdf-fetcher.js";
 import { parseRdf } from "../utils/rdf-parser.js";
+import { extractWithShapes, toRdfQuads } from "../utils/rdf-lens-extractor.js";
 import {
   renderTriples,
   clearContent,
@@ -95,6 +96,7 @@ export class RdfAdapter extends HTMLElement {
       const displayTriples = []; // subject-filtered (for rendering & display)
       const fullTriples    = []; // all parsed triples (for property-path resolution)
       const rawQuads       = []; // serialised quads for lens-based extraction
+      let lensObject = null;
 
       for (const url of urls) {
         if (signal.aborted) break;
@@ -134,11 +136,40 @@ export class RdfAdapter extends HTMLElement {
       }
 
       if (!signal.aborted) {
+        const shapeSrc = this.getAttribute("shape-src");
+        if (shapeSrc && rawQuads.length) {
+          try {
+            const { text, format } = await fetchRdf(shapeSrc);
+            let shapeRawQuads;
+            try {
+              shapeRawQuads = await parseRdf(text, format, shapeSrc);
+            } catch (err) {
+              throw new Error(`shape parse failed: ${err.message}`);
+            }
+            try {
+              lensObject = extractWithShapes(
+                toRdfQuads(rawQuads),
+                toRdfQuads(shapeRawQuads),
+              );
+            } catch (err) {
+              throw new Error(`shape extraction failed: ${err.message}`);
+            }
+          } catch (err) {
+            this.dispatchEvent(
+              new CustomEvent("rdf-error", {
+                detail: { message: `Failed to extract lens data from shape-src: ${err.message}`, url: shapeSrc },
+                bubbles: true,
+                composed: true,
+              })
+            );
+          }
+        }
+
         hideLoading(this._root);
         renderTriples(this._root, displayTriples);
         this.dispatchEvent(
           new CustomEvent("rdf-loaded", {
-            detail: { triples: displayTriples, allTriples: fullTriples, rawQuads },
+            detail: { triples: displayTriples, allTriples: fullTriples, rawQuads, lensObject },
             bubbles: true,
             composed: true,
           })

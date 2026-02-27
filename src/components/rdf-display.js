@@ -173,6 +173,7 @@ export class RdfDisplay extends LitElement {
      * inside the shadow DOM and is therefore not reachable by page-level CSS).
      */
     templateStyles: { type: String, attribute: "template-styles" },
+    lensObject: { state: true },
     _error: { state: true },
     /** Full unfiltered graph (from rdf-loaded.allTriples) — used for property-path resolution. */
     _allTriples: { state: true },
@@ -188,6 +189,7 @@ export class RdfDisplay extends LitElement {
     this.displayMode = "list";
     this.templateId = null;
     this.templateStyles = null;
+    this.lensObject = null;
     this._error = null;
     this._allTriples = null;
 
@@ -218,6 +220,7 @@ export class RdfDisplay extends LitElement {
   _handleRdfLoaded(event) {
     this._error = null;
     this.triples = event.detail?.triples ?? [];
+    this.lensObject = event.detail?.lensObject ?? null;
     // allTriples (full unfiltered graph) is used for property-path resolution in block mode.
     // Falls back to triples when not provided (e.g. when triples property is set directly).
     this._allTriples = event.detail?.allTriples ?? null;
@@ -350,6 +353,18 @@ export class RdfDisplay extends LitElement {
     // ── Block mode: template has at least one [data-rdf-predicate] or [data-rdf-path] element ──
     if (tmpl.content.querySelector("[data-rdf-predicate],[data-rdf-path]")) {
       _renderBlockTemplate(host, tmpl, this.triples, this._allTriples ?? this.triples);
+      return;
+    }
+
+    // ── Lens mode: when lens extraction data is available, render once from flat object ──
+    const lensRows = this.lensObject ? _collectLensRows(this.lensObject) : [];
+    const wantsLensPlaceholders = tmpl.innerHTML.includes("{lens:");
+    if (wantsLensPlaceholders && lensRows.length) {
+      for (const row of lensRows) {
+        const clone = tmpl.content.cloneNode(true);
+        _fillLensPlaceholders(clone, row);
+        host.appendChild(clone);
+      }
       return;
     }
 
@@ -723,6 +738,31 @@ function _resolvePropertyPath(allTriples, startSubjects, pathSteps) {
     if (!subjects.size) return []; // Dead-end path
   }
   return [];
+}
+
+function _collectLensRows(lensObject) {
+  if (!lensObject || typeof lensObject !== "object") return [];
+  const collected = [];
+  for (const group of Object.values(lensObject)) {
+    if (Array.isArray(group)) {
+      for (const row of group) {
+        if (row && typeof row === "object") collected.push(row);
+      }
+    }
+  }
+  return collected;
+}
+
+function _fillLensPlaceholders(fragment, lensRow) {
+  const replacements = {};
+  for (const [key, value] of Object.entries(lensRow)) {
+    const strValue = Array.isArray(value)
+      ? value.map((v) => (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""))).join(", ")
+      : (value && typeof value === "object" ? JSON.stringify(value) : String(value ?? ""));
+    replacements[`{lens:${key}}`] = strValue;
+  }
+  if (Object.keys(replacements).length === 0) return;
+  _fillPlaceholders(fragment, replacements);
 }
 
 // ---------------------------------------------------------------------------

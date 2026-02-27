@@ -1032,10 +1032,11 @@ import { fetchRdf } from '/src/utils/rdf-fetcher.js';
 import { parseRdf, terminateWorker } from '/src/utils/rdf-parser.js';
 import { isUri, shortenUri } from '/src/utils/rdf-utils.js';
 import { buildShaclFromDescriptors } from '/src/utils/rdf-lens-shacl.js';
-import { extractWithShapes } from '/src/utils/rdf-lens-extractor.js';
+import { extractWithShapes, toRdfQuads } from '/src/utils/rdf-lens-extractor.js';
 import { Store } from 'n3';
 
 const DEFAULT_RDF_FORMATS = ['text/turtle','application/ld+json','application/n-triples','text/n3'];
+const LENS_ROW_URN_PREFIX = 'urn:x-playground:lens-row:';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -1047,6 +1048,7 @@ let _previewMode = 'template'; // current preview mode
 let _generatedShacl = '';      // generated SHACL Turtle from block editor mappings
 let _store = new Store();       // internal N3 triplestore for graph inspection/extraction
 let _allQuads = [];             // RDFJS quads from parser (for lens extraction)
+let _lensTriples = [];          // preview triples derived only from lens flat-object output
 let _isHydratingMissing = false;
 /** predicate URI → { count, examples[], type } — updated by populateProps */
 let _predicateMap = new Map();
@@ -1616,8 +1618,20 @@ function getActiveShaclDescriptors() {
 
 function refreshShaclFromCurrentMappings() {
   const descriptors = getActiveShaclDescriptors();
-  _generatedShacl = buildShaclFromDescriptors(descriptors);
+  _generatedShacl = buildShaclFromDescriptors(descriptors, {
+    targetClassIri: inferTargetClassIri(),
+  });
   if (_generatedShacl) shaclViewer.value = _generatedShacl;
+}
+
+function inferTargetClassIri() {
+  const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+  const fallback = _allTriples.find((t) =>
+    t.predicate === RDF_TYPE &&
+    isUri(t.object) &&
+    (!_selectedSubject || t.subject === _selectedSubject)
+  );
+  return fallback?.object || 'https://example.org/model/GeneratedResource';
 }
 
 function refreshStoreViewer() {
@@ -1823,7 +1837,7 @@ function applyTokensToElement(el, triple) {
 function renderBlockTemplate(templateHtml, triples) {
   const container = document.createElement('div');
   container.innerHTML = templateHtml;
-  resolveAnnotatedElements(container, triples, _allTriples);
+  resolveAnnotatedElements(container, triples, triples);
   // Clear remaining tokens
   if (triples.length > 0) {
     applyTokensToElement(container, {
@@ -1907,11 +1921,18 @@ function resolveInner(el, triple, allTriples) {
 
 function resolvePropertyPath(allTriples, startSubjects, pathSteps) {
   if (!pathSteps.length) return [];
-  let subjects = new Set(startSubjects.filter(Boolean));
+  const initialSubjects = new Set(startSubjects.filter(Boolean));
+  let subjects = new Set(initialSubjects);
   for (let i = 0; i < pathSteps.length; i++) {
     const pred = pathSteps[i];
     const matches = allTriples.filter(t => subjects.has(t.subject) && t.predicate === pred);
-    if (i === pathSteps.length - 1) return matches;
+    if (i === pathSteps.length - 1) {
+      // Fallback for lens-projected data: keep final-step predicate matching
+      // constrained to the initial scope when full path traversal is unavailable.
+      return matches.length
+        ? matches
+        : allTriples.filter(t => initialSubjects.has(t.subject) && t.predicate === pred);
+    }
     subjects = new Set(matches.map(t => t.object).filter(o => isUri(o) || isBlankNode(o)));
     if (!subjects.size) return [];
   }
@@ -1955,11 +1976,15 @@ function setJsContent(val) {
 // Update preview iframe
 // ─────────────────────────────────────────────────────────────────────────────
 function updatePreview() {
-  if (!_triples.length) {
-    previewFrame.srcdoc = `<body style="font-family:sans-serif;color:#aaa;padding:2rem;font-style:italic">Fetch RDF data first, then the preview will appear here.</body>`;
+  if (!_allTriples.length) {
+    previewFrame.srcdoc = `<body style="font-family:sans-serif;color:#aaa;padding:2rem;font-style:italic">Fetch RDF data first.</body>`;
     return;
   }
-  const doc = buildPreviewDoc(_triples, _previewMode, htmlTA.value, cssTA.value, jsTA.value);
+  if (!_lensTriples.length) {
+    previewFrame.srcdoc = `<body style="font-family:sans-serif;color:#666;padding:2rem"><strong>Waiting for lens output…</strong><br/>Generate a valid SHACL shape and verify lens extraction to render the template.</body>`;
+    return;
+  }
+  const doc = buildPreviewDoc(_lensTriples, _previewMode, htmlTA.value, cssTA.value, jsTA.value);
   previewFrame.srcdoc = doc;
 }
 
@@ -2013,7 +2038,7 @@ async function tryHydrateMissingData(descriptors) {
   for (const uri of toFetch) {
     try {
       const { text, format } = await fetchRdf(uri, { formats: DEFAULT_RDF_FORMATS });
-      const extraQuads = await parseRdf(text, format, uri);
+      const extraQuads = toRdfQuads(await parseRdf(text, format, uri));
       if (extraQuads.length) {
         _store.addQuads(extraQuads);
         _allQuads.push(...extraQuads);
@@ -2043,22 +2068,28 @@ async function tryHydrateMissingData(descriptors) {
 
 async function updateLensViewer() {
   if (!_allQuads.length) {
+    _lensTriples = [];
     lensViewer.value = '';
     lensStatusNote.textContent = 'Load RDF first to inspect lens extraction.';
+    updatePreview();
     return;
   }
   const shaclText = shaclViewer.value.trim() || _generatedShacl;
   if (!shaclText) {
+    _lensTriples = [];
     lensViewer.value = '';
     lensStatusNote.textContent = 'Generate blocks/template mappings to build SHACL for lens extraction.';
+    updatePreview();
     return;
   }
   try {
-    const shapeQuads = await parseRdf(shaclText, 'text/turtle', 'playground://shacl');
+    const shapeQuads = toRdfQuads(await parseRdf(shaclText, 'text/turtle', 'playground://shacl'));
     const extracted = extractWithShapes(_allQuads, shapeQuads);
     lensViewer.value = JSON.stringify(extracted, null, 2);
-
     const descriptors = getActiveShaclDescriptors();
+    _lensTriples = lensExtractionToTriples(extracted, descriptors);
+    updatePreview();
+
     const missing = getMissingDescriptors(descriptors);
     if (missing.length && !_isHydratingMissing) {
       _isHydratingMissing = true;
@@ -2072,6 +2103,8 @@ async function updateLensViewer() {
           : 'No additional triples could be retrieved for missing paths.';
         const refreshed = extractWithShapes(_allQuads, shapeQuads);
         lensViewer.value = JSON.stringify(refreshed, null, 2);
+        _lensTriples = lensExtractionToTriples(refreshed, descriptors);
+        updatePreview();
       } finally {
         _isHydratingMissing = false;
       }
@@ -2079,9 +2112,41 @@ async function updateLensViewer() {
       lensStatusNote.textContent = 'Flat object extracted from N3 store using the SHACL viewer content.';
     }
   } catch (err) {
+    _lensTriples = [];
+    updatePreview();
     lensViewer.value = `SHACL / extraction error:\n${err.message}`;
     lensStatusNote.textContent = 'Invalid SHACL for lens extraction. Fix SHACL or regenerate from blocks/template.';
   }
+}
+
+function lensExtractionToTriples(extracted, descriptors) {
+  const descriptorByName = new Map(
+    descriptors.map((d) => [d.name || shortenUri(d.path[d.path.length - 1]), d])
+  );
+  const rows = Object.values(extracted || {}).flatMap((items) => Array.isArray(items) ? items : []);
+  const triples = [];
+  rows.forEach((row, rowIndex) => {
+    if (!row || typeof row !== 'object') return;
+    // Fallback subject when a lens row has no `id` field (synthetic, local-only).
+    const subject = isUri(row.id) ? row.id : (_selectedSubject || `${LENS_ROW_URN_PREFIX}${rowIndex + 1}`);
+    const entries = Object.entries(row);
+    for (const [key, rawValue] of entries) {
+      if (key === 'id' || rawValue === null || rawValue === undefined) continue;
+      const desc = descriptorByName.get(key);
+      const predicate = desc?.path?.[desc.path.length - 1] || key;
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+      for (const value of values) {
+        triples.push({
+          subject,
+          predicate,
+          object: typeof value === 'object' ? JSON.stringify(value) : String(value),
+          objectDatatype: null,
+          objectLang: null,
+        });
+      }
+    }
+  });
+  return triples;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2519,7 +2584,7 @@ function scheduleBlockPreview() {
 }
 
 function liveGenerateBlockPreview() {
-  if (!_triples.length) return;
+  if (!_lensTriples.length) return;
   const blocks = [...blockCanvas.querySelectorAll('.canvas-block')];
   if (!blocks.length) return;
 
@@ -2538,7 +2603,7 @@ function liveGenerateBlockPreview() {
   }
 
   if (!htmlParts.length) return;
-  const doc = buildPreviewDoc(_triples, 'template', htmlParts.join('\n'), cssParts.join('\n'), jsTA.value);
+  const doc = buildPreviewDoc(_lensTriples, 'template', htmlParts.join('\n'), cssParts.join('\n'), jsTA.value);
   previewFrame.srcdoc = doc;
 }
 
@@ -2605,7 +2670,9 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
     ? `<!-- Block-style template for subject: ${escHtml(_selectedSubject)} -->\n`
     : '<!-- Block-style template (data-rdf-predicate / data-rdf-path filtering) -->\n') + htmlParts.join('\n'));
   setCssContent(cssParts.join('\n'));
-  _generatedShacl = buildShaclFromDescriptors(collectShaclDescriptors(blocks));
+  _generatedShacl = buildShaclFromDescriptors(collectShaclDescriptors(blocks), {
+    targetClassIri: inferTargetClassIri(),
+  });
   if (_generatedShacl) shaclViewer.value = _generatedShacl;
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
@@ -2643,7 +2710,7 @@ async function doFetch() {
     const { text, format } = await fetchRdf(url, { formats });
     setStatus(`<span class="spinner"></span> Parsing ${format}…`);
 
-    const quads = await parseRdf(text, format, url);
+    const quads = toRdfQuads(await parseRdf(text, format, url));
     _allQuads = [...quads];
     _store = new Store();
     _store.addQuads(quads);
@@ -2663,8 +2730,7 @@ async function doFetch() {
     populateSubjects(_allTriples);
     populateProps(_triples);
     refreshStoreViewer();
-    _generatedShacl = buildShaclFromDescriptors(buildAutoDescriptorsFromPredicates());
-    shaclViewer.value = _generatedShacl;
+    refreshShaclFromCurrentMappings();
     await updateLensViewer();
     updatePreview();
   } catch (err) {

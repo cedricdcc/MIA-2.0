@@ -1,0 +1,22 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+[] a sh:NodeShape ;
+   sh:targetClass schema:Dataset ;
+   sh:property [
+     sh:name "title" ;
+     sh:path dct:title ;
+     sh:maxCount 1
+   ] , [
+     sh:name "description" ;
+     sh:path dct:description ;
+     sh:maxCount 1
+   ] , [
+     sh:name "created" ;
+     sh:path dct:created ;
+     sh:datatype xsd:date ;
+     sh:maxCount 1
+   ] .
+

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Template Examples (Lens workflow)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #213547; }
+    h1 { color: #1a6fa8; }
+    .card { border: 1px solid #dbe5ef; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; background: #fff; }
+    a { color: #1a6fa8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #f3f6f9; padding: .1rem .3rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Lens-first template examples</h1>
+  <p>
+    Use the playground to generate SHACL and lens flat JSON, then build templates
+    that render from that extracted object.
+  </p>
+
+  <div class="card">
+    <h2>Playground workflow</h2>
+    <p><a href="/playground/">Open playground</a></p>
+    <p>Store Viewer → SHACL Viewer → Lens Viewer → HTML Preview.</p>
+  </div>
+
+  <div class="card">
+    <h2>MarineInfo sample template</h2>
+    <p><a href="/templates/marineinfo-collection.html">Open marineinfo-collection.html</a></p>
+    <p>Use this as a base and adapt field mappings to your generated SHACL/lens output.</p>
+  </div>
+
+  <div class="card">
+    <h2>Documentation</h2>
+    <p><a href="/templates/TEMPLATES.md">Read TEMPLATES.md</a></p>
+    <p>Includes a detailed adapter → display data-flow diagram and lens template authoring rules.</p>
+  </div>
+</body>
+</html>
