@@ -40,7 +40,10 @@ function serializeQuads(quads) {
       value: q.object.value,
       termType: q.object.termType,
       datatype: q.object.datatype
-        ? { value: q.object.datatype.value, termType: q.object.datatype.termType }
+        ? {
+            value: q.object.datatype.value,
+            termType: q.object.datatype.termType,
+          }
         : undefined,
       language: q.object.language || undefined,
     },
@@ -55,7 +58,7 @@ function serializeQuads(quads) {
 describe("toRdfQuads", () => {
   it("converts NamedNode subjects, predicates and objects", () => {
     const source = parseTurtle(
-      "<https://example.org/s> <https://example.org/p> <https://example.org/o> ."
+      "<https://example.org/s> <https://example.org/p> <https://example.org/o> .",
     );
     const serialized = serializeQuads(source);
     const quads = toRdfQuads(serialized);
@@ -69,7 +72,7 @@ describe("toRdfQuads", () => {
 
   it("preserves plain string Literal values", () => {
     const source = parseTurtle(
-      '<https://example.org/s> <https://example.org/p> "hello" .'
+      '<https://example.org/s> <https://example.org/p> "hello" .',
     );
     const quads = toRdfQuads(serializeQuads(source));
 
@@ -79,19 +82,19 @@ describe("toRdfQuads", () => {
 
   it("preserves typed Literal datatype", () => {
     const source = parseTurtle(
-      '<https://example.org/s> <https://example.org/p> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .'
+      '<https://example.org/s> <https://example.org/p> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .',
     );
     const quads = toRdfQuads(serializeQuads(source));
 
     expect(quads[0].object.termType).toBe("Literal");
     expect(quads[0].object.datatype.value).toBe(
-      "http://www.w3.org/2001/XMLSchema#integer"
+      "http://www.w3.org/2001/XMLSchema#integer",
     );
   });
 
   it("preserves language-tagged Literal", () => {
     const source = parseTurtle(
-      '<https://example.org/s> <https://example.org/p> "hello"@en .'
+      '<https://example.org/s> <https://example.org/p> "hello"@en .',
     );
     const quads = toRdfQuads(serializeQuads(source));
 
@@ -101,7 +104,7 @@ describe("toRdfQuads", () => {
 
   it("preserves BlankNode subjects", () => {
     const source = parseTurtle(
-      "[] <https://example.org/p> <https://example.org/o> ."
+      "[] <https://example.org/p> <https://example.org/o> .",
     );
     const quads = toRdfQuads(serializeQuads(source));
 
@@ -137,7 +140,7 @@ describe("createPredicateLens", () => {
 
   it("returns an empty array when the predicate has no matches", () => {
     const source = parseTurtle(
-      "<https://example.org/s> <https://example.org/p> <https://example.org/o> ."
+      "<https://example.org/s> <https://example.org/p> <https://example.org/o> .",
     );
     const quads = toRdfQuads(serializeQuads(source));
     const missingLens = createPredicateLens("http://example.org/missing");
@@ -161,7 +164,11 @@ describe("extractWithLens", () => {
     const quads = toRdfQuads(serializeQuads(source));
     const nameLens = createPredicateLens("http://xmlns.com/foaf/0.1/name");
 
-    const results = extractWithLens(nameLens, "https://example.org/alice", quads);
+    const results = extractWithLens(
+      nameLens,
+      "https://example.org/alice",
+      quads,
+    );
 
     expect(results.length).toBeGreaterThanOrEqual(1);
     const values = results.map((c) => c.id.value);
@@ -176,13 +183,13 @@ describe("extractWithLens", () => {
     `);
     const quads = toRdfQuads(serializeQuads(source));
     const knowsNameLens = createPredicateLens(
-      "http://xmlns.com/foaf/0.1/knows"
+      "http://xmlns.com/foaf/0.1/knows",
     ).thenFlat(createPredicateLens("http://xmlns.com/foaf/0.1/name"));
 
     const results = extractWithLens(
       knowsNameLens,
       "https://example.org/alice",
-      quads
+      quads,
     );
 
     expect(results).toHaveLength(1);

@@ -83,7 +83,8 @@ export function buildShaclFromDescriptors(descriptors, options = {}) {
       `    sh:name "${escapeTurtleString(d.name)}" ;`,
       `    sh:path ${pathToShaclPath(d.path)} ;`,
       datatype ? `    sh:datatype ${datatype} ;` : null,
-      d.isList ? null : "    sh:maxCount 1 ;",
+      "    sh:minCount 1 ;",
+      d.isList ? null : "    sh:maxCount 1",
       "  ] ;",
     ]
       .filter(Boolean)

@@ -25,7 +25,13 @@
 import { DataFactory } from "n3";
 import { pred, extractShapes } from "rdf-lens";
 
-const { namedNode, blankNode, literal, quad: makeQuad, defaultGraph } = DataFactory;
+const {
+  namedNode,
+  blankNode,
+  literal,
+  quad: makeQuad,
+  defaultGraph,
+} = DataFactory;
 
 // ---------------------------------------------------------------------------
 // Quad reconstruction
@@ -74,7 +80,7 @@ export function toRdfQuads(serializedQuads) {
       toRdfTerm(q.predicate),
       toRdfTerm(q.object),
       toRdfTerm(q.graph),
-    )
+    ),
   );
 }
 
@@ -118,7 +124,7 @@ export function extractWithLens(lens, subjectIri, rdfQuads) {
  *
  * Given data quads and shape quads (both as RDFJS `Quad[]`), this function:
  *  1. Parses the shapes with rdf-lens's `extractShapes`
- *  2. For each shape that has a `sh:targetClass`, finds all matching subjects
+ *  2. For each shape, finds matching subjects via sh:targetClass or sh:targetNode
  *  3. Runs the corresponding lens over each subject
  *  4. Returns a map of class IRI → array of extracted plain JS objects
  *
@@ -132,18 +138,17 @@ export function extractWithShapes(dataQuads, shapeQuads) {
   /** @type {{ [classIri: string]: unknown[] }} */
   const result = {};
 
+  const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+
   for (const shape of shapes) {
     const classIri = shape.ty.value;
     const lens = lenses[classIri];
     if (!lens) continue;
 
     // Find all subjects typed as this class
-    const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
     const matchingSubjects = dataQuads
       .filter(
-        (q) =>
-          q.predicate.value === RDF_TYPE &&
-          q.object.value === classIri
+        (q) => q.predicate.value === RDF_TYPE && q.object.value === classIri,
       )
       .map((q) => q.subject);
 
