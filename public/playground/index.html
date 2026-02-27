@@ -929,6 +929,7 @@
 import { fetchRdf } from '/src/utils/rdf-fetcher.js';
 import { parseRdf, terminateWorker } from '/src/utils/rdf-parser.js';
 import { isUri, shortenUri } from '/src/utils/rdf-utils.js';
+import { buildShaclFromDescriptors } from '/src/utils/rdf-lens-shacl.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -937,6 +938,7 @@ let _allTriples = [];          // full set of parsed triples (never filtered)
 let _triples = [];             // triples for the currently selected subject (or all)
 let _selectedSubject = '';     // subject URI being focused, or '' for all
 let _previewMode = 'template'; // current preview mode
+let _generatedShacl = '';      // generated SHACL Turtle from block editor mappings
 /** predicate URI → { count, examples[], type } — updated by populateProps */
 let _predicateMap = new Map();
 
@@ -1394,6 +1396,61 @@ function getBlockAttrs(block) {
     fLimit:    block.querySelector('.block-filter-limit')?.value.trim()     ?? '',
     pathStr,
   };
+}
+
+function splitPathString(pathStr, predUri) {
+  const path = (pathStr || predUri || '')
+    .split(/\s+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return path;
+}
+
+function shouldSkipBlockType(blockType) {
+  return blockType === 'custom' || BLOCK_TYPES[blockType]?.isWidget || blockType === 'divider';
+}
+
+function collectShaclDescriptors(blocks) {
+  const descriptors = [];
+  for (const block of blocks) {
+    const blockType = block.dataset.blockType;
+    const attrs = getBlockAttrs(block);
+
+    if (shouldSkipBlockType(blockType)) {
+      continue;
+    }
+
+    if (blockType === 'section') {
+      const parentPath = splitPathString(attrs.pathStr, attrs.predUri);
+      const subItems = [...block.querySelectorAll('.sub-block-item')];
+      for (const item of subItems) {
+        const subType = item.querySelector('.sub-block-type')?.value ?? '';
+        if (!subType || shouldSkipBlockType(subType)) continue;
+
+        const subPred = item.querySelector('.sub-block-predicate')?.value ?? '';
+        const subPath = (item.querySelector('.sub-block-path')?.value || '').trim();
+        const childPath = splitPathString(subPath, subPred);
+        if (!childPath.length) continue;
+
+        descriptors.push({
+          path: [...parentPath, ...childPath],
+          name: shortenUri(childPath[childPath.length - 1]),
+          isList: !!BLOCK_TYPES[subType]?.isList,
+        });
+      }
+      continue;
+    }
+
+    const path = splitPathString(attrs.pathStr, attrs.predUri);
+    if (!path.length) continue;
+    descriptors.push({
+      path,
+      name: shortenUri(path[path.length - 1]),
+      isList: !!BLOCK_TYPES[blockType]?.isList,
+      filterType: attrs.fType || '',
+    });
+  }
+  return descriptors;
 }
 
 /**
@@ -2234,9 +2291,11 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
     ? `<!-- Block-style template for subject: ${escHtml(_selectedSubject)} -->\n`
     : '<!-- Block-style template (data-rdf-predicate / data-rdf-path filtering) -->\n') + htmlParts.join('\n'));
   setCssContent(cssParts.join('\n'));
+  _generatedShacl = buildShaclFromDescriptors(collectShaclDescriptors(blocks));
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
-  document.getElementById('block-status').textContent = `✅ Code generated from ${blocks.length} block${blocks.length !== 1 ? 's' : ''}.`;
+  document.getElementById('block-status').textContent =
+    `✅ Code generated from ${blocks.length} block${blocks.length !== 1 ? 's' : ''} (SHACL shape ready for download).`;
 });
 
 // Clear canvas button
@@ -2360,6 +2419,9 @@ ${tmplHtml}
 
   downloadFile('rdf-template.html',   templateFile,    'text/html');
   downloadFile('rdf-standalone.html', standaloneHtml,  'text/html');
+  if (_generatedShacl) {
+    downloadFile('rdf-shapes.ttl', _generatedShacl, 'text/turtle');
+  }
 });
 
 function downloadFile(name, content, mime) {

@@ -16,6 +16,9 @@ example in this folder.
 5. [Showing / hiding per-predicate content with CSS](#showing--hiding-per-predicate-content-with-css)
 6. [MarineInfo collection template walkthrough](#marineinfo-collection-template-walkthrough)
 7. [Quick-start snippet](#quick-start-snippet)
+8. [Block templates → SHACL shapes (playground)](#block-templates--shacl-shapes-playground)
+9. [Using lens flat objects with `rdf-display` templates](#using-lens-flat-objects-with-rdf-display-templates)
+10. [What is still needed for full lens-mode support](#what-is-still-needed-for-full-lens-mode-support)
 
 ---
 
@@ -341,4 +344,82 @@ predicates:
 
 <script type="module" src="/src/components/rdf-adapter.js"></script>
 <script type="module" src="/src/components/rdf-display.js"></script>
+```
+
+---
+
+## Block templates → SHACL shapes (playground)
+
+The playground block editor now generates a SHACL file (`rdf-shapes.ttl`) from
+the same predicate/path mappings used in block mode.
+
+### Mapping diagram
+
+```text
+Block editor canvas
+  ├─ heading            data-rdf-predicate=".../title"
+  ├─ tag-cloud          data-rdf-predicate=".../subject"
+  └─ section            data-rdf-predicate=".../member"
+       └─ subheading    data-rdf-predicate=".../label"
+
+↓ collect mapping descriptors
+
+[
+  { path: [title], isList: false },
+  { path: [subject], isList: true  },
+  { path: [member, label], isList: false }
+]
+
+↓ SHACL generation
+
+sh:property [ sh:path <.../title>; sh:maxCount 1; ... ]
+sh:property [ sh:path <.../subject>; ... ]
+sh:property [ sh:path ( <.../member> <.../label> ); ... ]
+```
+
+### What gets downloaded
+
+When you click **Download** after generating from blocks:
+
+- `rdf-template.html`
+- `rdf-standalone.html`
+- `rdf-shapes.ttl` (new)
+
+---
+
+## Using lens flat objects with `rdf-display` templates
+
+`rdf-display` template tokens (`{predicate}`, `{object}`, etc.) are
+triple-oriented. Lens output from SHACL extraction is object-oriented.
+
+```text
+Triples today:
+  [{subject,predicate,object,...}, ...]
+
+Lens output:
+  { title: "...", subject: ["...","..."], memberLabel: "..." }
+```
+
+For compatibility with current templates, convert lens objects to display
+triples first (middle-layer responsibility), then feed those triples into
+template rendering.
+
+---
+
+## What is still needed for full lens-mode support
+
+```text
+Current
+  rdf-adapter -> rdf-loaded({ triples, allTriples, rawQuads })
+  rdf-display <- consumes triples
+
+Added
+  rdf-lens middle layer:
+    rawQuads -> RDFJS quads -> SHACL lens extraction -> flat object
+
+Next (full integration)
+  1) Add a dedicated "lens-data" input mode to rdf-display
+  2) Add template bindings for object fields (e.g. {field:title})
+  3) Add repeat syntax for array fields (e.g. member[])
+  4) Provide optional field-to-predicate mapping for backward-compatible CSS classes
 ```
