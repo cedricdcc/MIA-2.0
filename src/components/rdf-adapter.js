@@ -94,6 +94,7 @@ export class RdfAdapter extends HTMLElement {
     try {
       const displayTriples = []; // subject-filtered (for rendering & display)
       const fullTriples    = []; // all parsed triples (for property-path resolution)
+      const rawQuads       = []; // serialised quads for lens-based extraction
 
       for (const url of urls) {
         if (signal.aborted) break;
@@ -105,6 +106,7 @@ export class RdfAdapter extends HTMLElement {
           if (signal.aborted) break;
 
           for (const quad of quads) {
+            rawQuads.push(quad);
             const triple = {
               subject: quad.subject.value,
               predicate: quad.predicate.value,
@@ -136,7 +138,7 @@ export class RdfAdapter extends HTMLElement {
         renderTriples(this._root, displayTriples);
         this.dispatchEvent(
           new CustomEvent("rdf-loaded", {
-            detail: { triples: displayTriples, allTriples: fullTriples },
+            detail: { triples: displayTriples, allTriples: fullTriples, rawQuads },
             bubbles: true,
             composed: true,
           })

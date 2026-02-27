@@ -22,7 +22,14 @@ self.addEventListener("message", (event) => {
     const serialised = quads.map((q) => ({
       subject: { value: q.subject.value, termType: q.subject.termType },
       predicate: { value: q.predicate.value, termType: q.predicate.termType },
-      object: { value: q.object.value, termType: q.object.termType },
+      object: {
+        value: q.object.value,
+        termType: q.object.termType,
+        datatype: q.object.datatype
+          ? { value: q.object.datatype.value, termType: q.object.datatype.termType }
+          : undefined,
+        language: q.object.language || undefined,
+      },
       graph: { value: q.graph.value, termType: q.graph.termType },
     }));
 
