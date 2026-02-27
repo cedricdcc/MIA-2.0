@@ -244,6 +244,71 @@
       border: none;
       background: #fff;
     }
+    .viewer-tabs {
+      display: flex;
+      gap: .35rem;
+      padding: .35rem .75rem;
+      background: #edf2f8;
+      border-bottom: 1px solid #dde4ed;
+      align-items: center;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+    .viewer-tab {
+      padding: .25rem .6rem;
+      font-size: .74rem;
+      border: 1px solid #bbc8d8;
+      border-radius: 3px;
+      background: #fff;
+      color: #3a5a7c;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .viewer-tab.active { background: #083d6b; color: #fff; border-color: #083d6b; }
+    .viewer-pane { display: none; flex: 1; min-height: 0; }
+    .viewer-pane.active { display: flex; flex-direction: column; }
+    .viewer-text {
+      width: 100%;
+      height: 100%;
+      border: none;
+      outline: none;
+      resize: none;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: .77rem;
+      line-height: 1.5;
+      background: #101926;
+      color: #cde0f8;
+      padding: .75rem;
+    }
+    .viewer-note {
+      padding: .35rem .75rem;
+      border-top: 1px solid #dde4ed;
+      background: #f8fbff;
+      font-size: .72rem;
+      color: #557;
+      flex-shrink: 0;
+    }
+    .playground-help {
+      margin: .6rem .75rem;
+      border: 1px solid #d6e3f2;
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(180deg, #f8fbff 0%, #f0f6fd 100%);
+    }
+    .playground-help summary {
+      cursor: pointer;
+      padding: .55rem .8rem;
+      font-size: .78rem;
+      font-weight: 700;
+      color: #114776;
+    }
+    .playground-help-content {
+      padding: 0 .85rem .75rem;
+      font-size: .74rem;
+      color: #2a4a6a;
+      line-height: 1.6;
+    }
+    .playground-help-content ul { margin: .35rem 0 0 1rem; padding: 0; }
 
     /* ── Placeholder tokens cheat-sheet ──────────────────────────────── */
     .token-grid {
@@ -757,10 +822,11 @@
   <div class="panel">
     <div class="panel-header">✏️ Template Editor</div>
 
-    <div class="editor-tabs">
-      <button class="editor-tab active" data-tab="html-editor">HTML template</button>
-      <button class="editor-tab" data-tab="css-editor">CSS styles</button>
-      <button class="editor-tab" data-tab="block-editor">🧱 Blocks</button>
+    <div class="editor-tabs" role="tablist" aria-label="Template editors">
+      <button class="editor-tab active" data-tab="html-editor" role="tab" aria-selected="true" aria-controls="html-editor">HTML template</button>
+      <button class="editor-tab" data-tab="css-editor" role="tab" aria-selected="false" aria-controls="css-editor">CSS styles</button>
+      <button class="editor-tab" data-tab="js-editor" role="tab" aria-selected="false" aria-controls="js-editor">JS behavior</button>
+      <button class="editor-tab" data-tab="block-editor" role="tab" aria-selected="false" aria-controls="block-editor">🧱 Blocks</button>
     </div>
 
     <div class="editor-pane active" id="html-editor">
@@ -770,6 +836,10 @@
     <div class="editor-pane" id="css-editor">
       <textarea class="code-editor" id="css-textarea" spellcheck="false"
         placeholder="Write CSS for .rdf-template-host and .triple.* classes…"></textarea>
+    </div>
+    <div class="editor-pane" id="js-editor">
+      <textarea class="code-editor" id="js-textarea" spellcheck="false"
+        placeholder="Optional JS to run inside preview template host (review before sharing/download)…"></textarea>
     </div>
 
     <!-- Block (visual) editor -->
@@ -883,22 +953,55 @@
       <button class="toolbar-btn" id="reset-btn">↺ Reset to starter</button>
       <button class="toolbar-btn" id="undo-html-btn" title="Undo last programmatic HTML change">↩ HTML</button>
       <button class="toolbar-btn" id="undo-css-btn" title="Undo last programmatic CSS change">↩ CSS</button>
+      <button class="toolbar-btn" id="undo-js-btn" title="Undo last programmatic JS change">↩ JS</button>
       <button class="toolbar-btn primary" id="preview-btn">▶ Update preview</button>
       <button class="toolbar-btn success" id="download-btn" style="margin-left:auto">⬇ Download</button>
     </div>
   </div>
 
-  <!-- ── COLUMN 3: Preview ── -->
+    <!-- ── COLUMN 3: Preview ── -->
   <div class="panel preview-panel">
     <div class="panel-header">👁️ Live Preview</div>
-    <div class="preview-mode-bar">
-      <span style="font-size:.75rem;color:#7a9abf;margin-right:.4rem">Display mode:</span>
-      <button class="preview-mode-btn active" data-mode="template">Template</button>
-      <button class="preview-mode-btn" data-mode="list">List</button>
-      <button class="preview-mode-btn" data-mode="grid">Grid</button>
-      <button class="preview-mode-btn" data-mode="table">Table</button>
+    <div class="viewer-tabs" role="tablist" aria-label="Graph and extraction viewers">
+      <button class="viewer-tab active" data-viewer="viewer-html" role="tab" aria-selected="true" aria-controls="viewer-html">HTML Preview</button>
+      <button class="viewer-tab" data-viewer="viewer-store" role="tab" aria-selected="false" aria-controls="viewer-store">Store Viewer</button>
+      <button class="viewer-tab" data-viewer="viewer-shacl" role="tab" aria-selected="false" aria-controls="viewer-shacl">SHACL Viewer</button>
+      <button class="viewer-tab" data-viewer="viewer-lens" role="tab" aria-selected="false" aria-controls="viewer-lens">Lens Viewer</button>
     </div>
-    <iframe id="preview-iframe" title="Preview"></iframe>
+    <div class="viewer-pane active" id="viewer-html">
+      <div class="preview-mode-bar">
+        <span style="font-size:.75rem;color:#7a9abf;margin-right:.4rem">Display mode:</span>
+        <button class="preview-mode-btn active" data-mode="template">Template</button>
+        <button class="preview-mode-btn" data-mode="list">List</button>
+        <button class="preview-mode-btn" data-mode="grid">Grid</button>
+        <button class="preview-mode-btn" data-mode="table">Table</button>
+      </div>
+      <iframe id="preview-iframe" title="Preview"></iframe>
+    </div>
+    <div class="viewer-pane" id="viewer-store">
+      <textarea class="viewer-text" id="store-viewer" readonly spellcheck="false"></textarea>
+      <div class="viewer-note">Inspect graph triples currently loaded into the internal N3 store.</div>
+    </div>
+    <div class="viewer-pane" id="viewer-shacl">
+      <textarea class="viewer-text" id="shacl-viewer" spellcheck="false"></textarea>
+      <div class="viewer-note">SHACL is generated from blocks/template mappings and updates dynamically.</div>
+    </div>
+    <div class="viewer-pane" id="viewer-lens">
+      <textarea class="viewer-text" id="lens-viewer" readonly spellcheck="false"></textarea>
+      <div class="viewer-note" id="lens-status-note">Flat object extracted from N3 store using the SHACL viewer content.</div>
+    </div>
+    <details class="playground-help" role="region" aria-labelledby="playground-help-summary">
+      <summary id="playground-help-summary">📘 What you can do in this playground</summary>
+      <div class="playground-help-content">
+        Build templates visually with blocks, inspect the full graph in the store viewer, edit SHACL directly, inspect lens-flat objects, and refine HTML/CSS/JS with live preview.
+        <ul>
+          <li><b>Store Viewer</b>: inspect all loaded triples in the in-memory N3 store.</li>
+          <li><b>SHACL Viewer</b>: auto-generated shape file, editable before extraction.</li>
+          <li><b>Lens Viewer</b>: extracted flat object from store + SHACL.</li>
+          <li><b>HTML/CSS/JS Editor</b>: adjust template behavior with instant preview.</li>
+        </ul>
+      </div>
+    </details>
   </div>
 
 </div>
@@ -930,6 +1033,10 @@ import { fetchRdf } from '/src/utils/rdf-fetcher.js';
 import { parseRdf, terminateWorker } from '/src/utils/rdf-parser.js';
 import { isUri, shortenUri } from '/src/utils/rdf-utils.js';
 import { buildShaclFromDescriptors } from '/src/utils/rdf-lens-shacl.js';
+import { extractWithShapes } from '/src/utils/rdf-lens-extractor.js';
+import { Store } from 'n3';
+
+const DEFAULT_RDF_FORMATS = ['text/turtle','application/ld+json','application/n-triples','text/n3'];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // State
@@ -939,6 +1046,9 @@ let _triples = [];             // triples for the currently selected subject (or
 let _selectedSubject = '';     // subject URI being focused, or '' for all
 let _previewMode = 'template'; // current preview mode
 let _generatedShacl = '';      // generated SHACL Turtle from block editor mappings
+let _store = new Store();       // internal N3 triplestore for graph inspection/extraction
+let _allQuads = [];             // RDFJS quads from parser (for lens extraction)
+let _isHydratingMissing = false;
 /** predicate URI → { count, examples[], type } — updated by populateProps */
 let _predicateMap = new Map();
 
@@ -954,7 +1064,12 @@ const propsEmpty   = document.getElementById('props-empty');
 const propsCount   = document.getElementById('props-count');
 const htmlTA       = document.getElementById('html-textarea');
 const cssTA        = document.getElementById('css-textarea');
+const jsTA         = document.getElementById('js-textarea');
 const previewFrame = document.getElementById('preview-iframe');
+const storeViewer  = document.getElementById('store-viewer');
+const shaclViewer  = document.getElementById('shacl-viewer');
+const lensViewer   = document.getElementById('lens-viewer');
+const lensStatusNote = document.getElementById('lens-status-note');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Default starter template
@@ -1014,24 +1129,44 @@ const DEFAULT_CSS = `/* ── Host container ───────────�
   text-decoration: none;
 }
 .triple .value-link:hover { text-decoration: underline; }`;
+const DEFAULT_JS = `// Optional JS runs in the preview iframe after render.
+// Example:
+// document.querySelectorAll('.triple').forEach(el => el.style.transition = 'all .2s ease');`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Initialise editors with defaults
 // ─────────────────────────────────────────────────────────────────────────────
 htmlTA.value = DEFAULT_HTML;
 cssTA.value  = DEFAULT_CSS;
+jsTA.value   = DEFAULT_JS;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tab switching
 // ─────────────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.editor-tab').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.editor-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.editor-tab').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
     document.querySelectorAll('.editor-pane').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
     document.getElementById(btn.dataset.tab).classList.add('active');
     // Toggle dedicated blocks-builder full-screen layout
     document.body.classList.toggle('blocks-mode', btn.dataset.tab === 'block-editor');
+  });
+});
+document.querySelectorAll('.viewer-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.viewer-tab').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.viewer-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    document.getElementById(btn.dataset.viewer).classList.add('active');
   });
 });
 
@@ -1039,7 +1174,7 @@ document.querySelectorAll('.editor-tab').forEach(btn => {
 // Token-chip click → insert into focused textarea
 // ─────────────────────────────────────────────────────────────────────────────
 let _lastFocusedTA = htmlTA;
-[htmlTA, cssTA].forEach(ta => ta.addEventListener('focus', () => _lastFocusedTA = ta));
+[htmlTA, cssTA, jsTA].forEach(ta => ta.addEventListener('focus', () => _lastFocusedTA = ta));
 
 document.querySelectorAll('.token-chip').forEach(chip => {
   chip.addEventListener('click', () => {
@@ -1454,6 +1589,54 @@ function collectShaclDescriptors(blocks) {
 }
 
 /**
+ * Derive SHACL path descriptors by scanning current template markup for
+ * data-rdf-predicate / data-rdf-path annotations.
+ * @param {string} templateHtml
+ * @returns {Array<{ path: string[], name: string, isList: boolean }>}
+ */
+function collectTemplateDescriptorsFromHtml(templateHtml) {
+  const wrapper = document.createElement('template');
+  wrapper.innerHTML = templateHtml || '';
+  const nodes = [...wrapper.content.querySelectorAll('[data-rdf-predicate],[data-rdf-path]')];
+  return nodes
+    .map((el) => {
+      const pathAttr = (el.getAttribute('data-rdf-path') || '').trim();
+      const predAttr = (el.getAttribute('data-rdf-predicate') || '').trim();
+      const path = splitPathString(pathAttr, predAttr);
+      if (!path.length) return null;
+      return { path, name: shortenUri(path[path.length - 1]), isList: false };
+    })
+    .filter(Boolean);
+}
+
+function getActiveShaclDescriptors() {
+  const blocks = [...blockCanvas.querySelectorAll('.canvas-block')];
+  if (blocks.length) return collectShaclDescriptors(blocks);
+  return collectTemplateDescriptorsFromHtml(htmlTA.value);
+}
+
+function refreshShaclFromCurrentMappings() {
+  const descriptors = getActiveShaclDescriptors();
+  _generatedShacl = buildShaclFromDescriptors(descriptors);
+  if (_generatedShacl) shaclViewer.value = _generatedShacl;
+}
+
+function refreshStoreViewer() {
+  const sorted = [..._allTriples].sort((a, b) => {
+    const left = `${a.subject}|${a.predicate}|${a.object}`;
+    const right = `${b.subject}|${b.predicate}|${b.object}`;
+    return left.localeCompare(right);
+  });
+  const lines = sorted.map((t) => {
+    let objectTerm = `"${t.object}"`;
+    if (isBlankNode(t.object)) objectTerm = t.object;
+    else if (isUri(t.object)) objectTerm = `<${t.object}>`;
+    return `<${t.subject}> <${t.predicate}> ${objectTerm} .`;
+  });
+  storeViewer.value = lines.join('\n');
+}
+
+/**
  * Generates { html, css } for a single canvas block element, handling
  * all block types including section (with sub-blocks) and custom.
  */
@@ -1533,7 +1716,7 @@ function fillPlaceholders(html, triple) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Build rendered HTML for the preview iframe
 // ─────────────────────────────────────────────────────────────────────────────
-function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
+function buildPreviewDoc(triples, mode, templateHtml, templateCss, templateJs = '') {
   let bodyContent = '';
 
   if (mode === 'template') {
@@ -1575,6 +1758,9 @@ function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
     bodyContent = `<table><thead><tr><th>Predicate</th><th>Object</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
+  const jsBlock = templateJs && templateJs.trim()
+    ? `<script>\n${templateJs}\n<\/script>`
+    : '';
   return `<!DOCTYPE html><html lang="en"><head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1588,7 +1774,7 @@ function buildPreviewDoc(triples, mode, templateHtml, templateCss) {
     .pred{font-weight:700;font-size:.78em;color:#555;margin-bottom:.25rem}
     table{border-collapse:collapse;width:100%}th,td{border:1px solid #dde4ed;padding:.4rem .65rem;text-align:left}th{background:#edf2f8;font-size:.85em}
   </style>
-</head><body>${bodyContent}</body></html>`;
+</head><body>${bodyContent}${jsBlock}</body></html>`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1745,6 +1931,7 @@ function isBlankNode(v) { return typeof v === 'string' && v.startsWith('_:'); }
 const MAX_UNDO = 50;
 let _htmlUndoStack = [];
 let _cssUndoStack  = [];
+let _jsUndoStack   = [];
 
 /** Set HTML editor content with undo-push. */
 function setHtmlContent(val) {
@@ -1758,6 +1945,12 @@ function setCssContent(val) {
   if (_cssUndoStack.length > MAX_UNDO) _cssUndoStack.shift();
   cssTA.value = val;
 }
+/** Set JS editor content with undo-push. */
+function setJsContent(val) {
+  _jsUndoStack.push(jsTA.value);
+  if (_jsUndoStack.length > MAX_UNDO) _jsUndoStack.shift();
+  jsTA.value = val;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Update preview iframe
@@ -1767,8 +1960,129 @@ function updatePreview() {
     previewFrame.srcdoc = `<body style="font-family:sans-serif;color:#aaa;padding:2rem;font-style:italic">Fetch RDF data first, then the preview will appear here.</body>`;
     return;
   }
-  const doc = buildPreviewDoc(_triples, _previewMode, htmlTA.value, cssTA.value);
+  const doc = buildPreviewDoc(_triples, _previewMode, htmlTA.value, cssTA.value, jsTA.value);
   previewFrame.srcdoc = doc;
+}
+
+function buildAutoDescriptorsFromPredicates() {
+  return [..._predicateMap.entries()].map(([uri, entry]) => ({
+    path: [uri],
+    name: shortenUri(uri),
+    isList: entry.count > 1,
+    filterType: entry.type || '',
+  }));
+}
+
+function getSubjectsInScope() {
+  if (_selectedSubject) return [_selectedSubject];
+  return [...new Set(_triples.map((t) => t.subject))].slice(0, MAX_SUBJECTS_IN_SCOPE);
+}
+
+function hasPathInStore(subject, path) {
+  let current = [subject];
+  for (const pred of path) {
+    const next = [];
+    for (const s of current) {
+      const objects = _store.getObjects(s, pred, null).map((o) => o.value);
+      next.push(...objects);
+    }
+    if (!next.length) return false;
+    current = next;
+  }
+  return current.length > 0;
+}
+
+function getMissingDescriptors(descriptors) {
+  const subjects = getSubjectsInScope();
+  return descriptors.filter((d) => d.path.length > 1 && !subjects.some((s) => hasPathInStore(s, d.path)));
+}
+
+async function tryHydrateMissingData(descriptors) {
+  const subjects = getSubjectsInScope();
+  const candidateUris = new Set();
+  for (const d of descriptors) {
+    const first = d.path[0];
+    for (const s of subjects) {
+      const objs = _store.getObjects(s, first, null).map((o) => o.value).filter(isUri);
+      objs.forEach((u) => candidateUris.add(u));
+    }
+  }
+  const toFetch = [...candidateUris].slice(0, MAX_HYDRATION_URIS);
+  if (!toFetch.length) return 0;
+
+  let added = 0;
+  for (const uri of toFetch) {
+    try {
+      const { text, format } = await fetchRdf(uri, { formats: DEFAULT_RDF_FORMATS });
+      const extraQuads = await parseRdf(text, format, uri);
+      if (extraQuads.length) {
+        _store.addQuads(extraQuads);
+        _allQuads.push(...extraQuads);
+        added += extraQuads.length;
+      }
+    } catch (err) {
+      // best-effort hydration: linked resources are often unavailable/CORS-blocked, so
+      // failures are expected and non-fatal for the current template session.
+      console.warn('Hydration fetch failed for URI', uri, err);
+    }
+  }
+  if (added > 0) {
+    _allTriples = _allQuads.map(q => ({
+      subject: q.subject?.value ?? String(q.subject),
+      predicate: q.predicate?.value ?? String(q.predicate),
+      object: q.object?.value ?? String(q.object),
+      objectDatatype: q.object?.datatype?.value ?? null,
+      objectLang: q.object?.language ?? null,
+    }));
+    _triples = _selectedSubject ? _allTriples.filter(t => t.subject === _selectedSubject) : _allTriples;
+    populateProps(_triples);
+    refreshStoreViewer();
+    updatePreview();
+  }
+  return added;
+}
+
+async function updateLensViewer() {
+  if (!_allQuads.length) {
+    lensViewer.value = '';
+    lensStatusNote.textContent = 'Load RDF first to inspect lens extraction.';
+    return;
+  }
+  const shaclText = shaclViewer.value.trim() || _generatedShacl;
+  if (!shaclText) {
+    lensViewer.value = '';
+    lensStatusNote.textContent = 'Generate blocks/template mappings to build SHACL for lens extraction.';
+    return;
+  }
+  try {
+    const shapeQuads = await parseRdf(shaclText, 'text/turtle', 'playground://shacl');
+    const extracted = extractWithShapes(_allQuads, shapeQuads);
+    lensViewer.value = JSON.stringify(extracted, null, 2);
+
+    const descriptors = getActiveShaclDescriptors();
+    const missing = getMissingDescriptors(descriptors);
+    if (missing.length && !_isHydratingMissing) {
+      _isHydratingMissing = true;
+      try {
+        setStatus(`<span class="spinner"></span> Loading missing triples for template fields…`);
+        lensStatusNote.textContent = `Loading missing path data for ${missing.length} field(s)…`;
+        const added = await tryHydrateMissingData(missing);
+        setStatus(`✅ Loaded ${_allTriples.length} triples from <em>${escHtml(urlInput.value.trim() || 'current source')}</em>`);
+        lensStatusNote.textContent = added
+          ? `Loaded ${added} additional triple(s) for missing SHACL/template paths.`
+          : 'No additional triples could be retrieved for missing paths.';
+        const refreshed = extractWithShapes(_allQuads, shapeQuads);
+        lensViewer.value = JSON.stringify(refreshed, null, 2);
+      } finally {
+        _isHydratingMissing = false;
+      }
+    } else if (!_isHydratingMissing) {
+      lensStatusNote.textContent = 'Flat object extracted from N3 store using the SHACL viewer content.';
+    }
+  } catch (err) {
+    lensViewer.value = `SHACL / extraction error:\n${err.message}`;
+    lensStatusNote.textContent = 'Invalid SHACL for lens extraction. Fix SHACL or regenerate from blocks/template.';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1926,6 +2240,7 @@ document.getElementById('subject-select').addEventListener('change', function ()
   populateProps(_triples);
   updatePreview();
   updateCanvasSubjectBanner();
+  updateLensViewer();
 
   // Refresh predicate selects in blocks already on the canvas
   const keys = [..._predicateMap.keys()];
@@ -2224,7 +2539,7 @@ function liveGenerateBlockPreview() {
   }
 
   if (!htmlParts.length) return;
-  const doc = buildPreviewDoc(_triples, 'template', htmlParts.join('\n'), cssParts.join('\n'));
+  const doc = buildPreviewDoc(_triples, 'template', htmlParts.join('\n'), cssParts.join('\n'), jsTA.value);
   previewFrame.srcdoc = doc;
 }
 
@@ -2292,8 +2607,10 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
     : '<!-- Block-style template (data-rdf-predicate / data-rdf-path filtering) -->\n') + htmlParts.join('\n'));
   setCssContent(cssParts.join('\n'));
   _generatedShacl = buildShaclFromDescriptors(collectShaclDescriptors(blocks));
+  if (_generatedShacl) shaclViewer.value = _generatedShacl;
   document.querySelector('[data-tab="html-editor"]').click();
   updatePreview();
+  updateLensViewer();
   document.getElementById('block-status').textContent =
     `✅ Code generated from ${blocks.length} block${blocks.length !== 1 ? 's' : ''} (SHACL shape ready for download).`;
 });
@@ -2302,6 +2619,8 @@ document.getElementById('block-gen-btn').addEventListener('click', () => {
 document.getElementById('block-clear-btn').addEventListener('click', () => {
   blockCanvas.innerHTML = `<div class="canvas-empty" id="canvas-empty">← Drag blocks from the palette, or click a property's <b>Block</b> button to add it here</div>`;
   updateCanvasStatus();
+  refreshShaclFromCurrentMappings();
+  updateLensViewer();
 });
 // ─────────────────────────────────────────────────────────────────────────────
 async function doFetch() {
@@ -2319,13 +2638,16 @@ async function doFetch() {
   try {
     const formatVal = formatSelect.value;
     const formats = formatVal === 'auto'
-      ? ['text/turtle','application/ld+json','application/n-triples','text/n3']
+      ? DEFAULT_RDF_FORMATS
       : [formatVal];
 
     const { text, format } = await fetchRdf(url, { formats });
     setStatus(`<span class="spinner"></span> Parsing ${format}…`);
 
     const quads = await parseRdf(text, format, url);
+    _allQuads = [...quads];
+    _store = new Store();
+    _store.addQuads(quads);
 
     _allTriples = quads.map(q => ({
       subject:       q.subject?.value   ?? String(q.subject),
@@ -2341,6 +2663,10 @@ async function doFetch() {
     setStatus(`✅ Loaded ${_allTriples.length} triples from <em>${escHtml(url)}</em>`);
     populateSubjects(_allTriples);
     populateProps(_triples);
+    refreshStoreViewer();
+    _generatedShacl = buildShaclFromDescriptors(buildAutoDescriptorsFromPredicates());
+    shaclViewer.value = _generatedShacl;
+    await updateLensViewer();
     updatePreview();
   } catch (err) {
     setStatus(`❌ ${escHtml(err.message)}`, true);
@@ -2367,6 +2693,9 @@ document.getElementById('preview-btn').addEventListener('click', updatePreview);
 document.getElementById('reset-btn').addEventListener('click', () => {
   setHtmlContent(DEFAULT_HTML);
   setCssContent(DEFAULT_CSS);
+  setJsContent(DEFAULT_JS);
+  refreshShaclFromCurrentMappings();
+  updateLensViewer();
   updatePreview();
 });
 document.getElementById('undo-html-btn').addEventListener('click', () => {
@@ -2379,15 +2708,38 @@ document.getElementById('undo-css-btn').addEventListener('click', () => {
   cssTA.value = _cssUndoStack.pop();
   schedulePreview();
 });
+document.getElementById('undo-js-btn').addEventListener('click', () => {
+  if (!_jsUndoStack.length) return;
+  jsTA.value = _jsUndoStack.pop();
+  schedulePreview();
+});
 
 // Auto-update preview when editors change (debounced)
 let _debounce;
+let _lensDebounce;
+let _mappingDebounce;
 function schedulePreview() {
   clearTimeout(_debounce);
   _debounce = setTimeout(updatePreview, 600);
 }
-htmlTA.addEventListener('input', schedulePreview);
+function scheduleLensRefresh() {
+  clearTimeout(_lensDebounce);
+  _lensDebounce = setTimeout(updateLensViewer, 450);
+}
+function scheduleMappingRefresh() {
+  clearTimeout(_mappingDebounce);
+  _mappingDebounce = setTimeout(() => {
+    refreshShaclFromCurrentMappings();
+    updateLensViewer();
+  }, 450);
+}
+htmlTA.addEventListener('input', () => {
+  schedulePreview();
+  scheduleMappingRefresh();
+});
 cssTA.addEventListener('input',  schedulePreview);
+jsTA.addEventListener('input',  schedulePreview);
+shaclViewer.addEventListener('input', () => { _generatedShacl = shaclViewer.value; scheduleLensRefresh(); });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Download
@@ -2396,11 +2748,13 @@ document.getElementById('download-btn').addEventListener('click', () => {
   const url    = urlInput.value.trim() || '';
   const tmplHtml = htmlTA.value;
   const tmplCss  = cssTA.value;
+  const tmplJs   = jsTA.value;
 
   // 1. Template snippet (just the <template> + <style> blocks)
   const templateFile = `<!-- rdf-display template snippet
      Generated by RDF Template Playground – MIA 2.0
      Source: ${url}
+     SECURITY WARNING: embedded JavaScript executes on open. Review and sanitize before sharing.
 -->
 
 <!-- Inject this <style> into rdf-display via: template-styles="rdf-custom-styles" -->
@@ -2412,10 +2766,14 @@ ${tmplCss}
 <template id="rdf-custom-tmpl">
 ${tmplHtml}
 </template>
+
+<script>
+${tmplJs}
+<\/script>
 `;
 
   // 2. Full standalone HTML page
-  const standaloneHtml = buildStandaloneHtml(url, tmplHtml, tmplCss);
+  const standaloneHtml = buildStandaloneHtml(url, tmplHtml, tmplCss, tmplJs);
 
   downloadFile('rdf-template.html',   templateFile,    'text/html');
   downloadFile('rdf-standalone.html', standaloneHtml,  'text/html');
@@ -2433,7 +2791,7 @@ function downloadFile(name, content, mime) {
   URL.revokeObjectURL(a.href);
 }
 
-function buildStandaloneHtml(rdfUrl, tmplHtml, tmplCss) {
+function buildStandaloneHtml(rdfUrl, tmplHtml, tmplCss, tmplJs = '') {
   const safeUrl = rdfUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!DOCTYPE html>
 <html lang="en">
@@ -2447,6 +2805,7 @@ function buildStandaloneHtml(rdfUrl, tmplHtml, tmplCss) {
     Replace the example.org placeholder URLs below with your actual deployment paths.
     e.g.:  https://unpkg.com/mia-2.0@latest/dist/rdf-adapter.js
            https://unpkg.com/mia-2.0@latest/dist/rdf-display.js
+    SECURITY WARNING: this file executes user-authored JavaScript. Review and sanitize before distributing.
   -->
   <script type="module" src="https://example.org/rdf-adapter.js"><\/script>
   <script type="module" src="https://example.org/rdf-display.js"><\/script>
@@ -2460,6 +2819,9 @@ ${tmplCss}
   <template id="rdf-custom-tmpl">
 ${tmplHtml}
   </template>
+  <script>
+${tmplJs}
+  <\/script>
 
   <style>
     body { margin: 1.5rem; font-family: 'Segoe UI', system-ui, sans-serif; background: #f0f4f8; }
@@ -2496,6 +2858,8 @@ const FREE_MODEL_SUFFIX = ':free';
 const MAX_FACET_VALUES        = 40;   // max distinct facet checkbox options
 const SLIDER_STEP_DIVISIONS   = 100;  // number of equal steps across the slider range
 const MAX_PREDICATES_IN_CONTEXT = 30; // max predicates sent in the chat system message
+const MAX_SUBJECTS_IN_SCOPE   = 6;    // balances path coverage with responsiveness on multi-subject datasets
+const MAX_HYDRATION_URIS      = 8;    // caps linked-resource fetch fan-out to avoid aggressive network bursts
 // Chat completion limits
 const CHAT_MAX_TOKENS    = 4096;  // generous limit for full template generation
 const CHAT_TEMPERATURE   = 0.4;   // slightly creative but mostly deterministic for code
