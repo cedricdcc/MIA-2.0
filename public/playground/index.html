@@ -1552,6 +1552,14 @@ function shouldSkipBlockType(blockType) {
   return blockType === 'custom' || BLOCK_TYPES[blockType]?.isWidget || blockType === 'divider';
 }
 
+function inferDescriptorDatatype(predicateUri) {
+  return _predicateMap.get(predicateUri)?.datatypes?.[0] || '';
+}
+
+function inferDescriptorFilterType(predicateUri) {
+  return _predicateMap.get(predicateUri)?.type || '';
+}
+
 function collectShaclDescriptors(blocks) {
   const descriptors = [];
   for (const block of blocks) {
@@ -1573,11 +1581,16 @@ function collectShaclDescriptors(blocks) {
         const subPath = (item.querySelector('.sub-block-path')?.value || '').trim();
         const childPath = splitPathString(subPath, subPred);
         if (!childPath.length) continue;
+        const terminal = childPath[childPath.length - 1];
+        const datatype = inferDescriptorDatatype(terminal);
+        const filterType = inferDescriptorFilterType(terminal);
 
         descriptors.push({
           path: [...parentPath, ...childPath],
-          name: shortenUri(childPath[childPath.length - 1]),
+          name: shortenUri(terminal),
           isList: !!BLOCK_TYPES[subType]?.isList,
+          filterType,
+          datatype,
         });
       }
       continue;
@@ -1585,11 +1598,15 @@ function collectShaclDescriptors(blocks) {
 
     const path = splitPathString(attrs.pathStr, attrs.predUri);
     if (!path.length) continue;
+    const terminal = path[path.length - 1];
+    const datatype = inferDescriptorDatatype(terminal);
+    const filterType = attrs.fType || inferDescriptorFilterType(terminal);
     descriptors.push({
       path,
-      name: shortenUri(path[path.length - 1]),
+      name: shortenUri(terminal),
       isList: !!BLOCK_TYPES[blockType]?.isList,
-      filterType: attrs.fType || '',
+      filterType,
+      datatype,
     });
   }
   return descriptors;
@@ -1611,7 +1628,15 @@ function collectTemplateDescriptorsFromHtml(templateHtml) {
       const predAttr = (el.getAttribute('data-rdf-predicate') || '').trim();
       const path = splitPathString(pathAttr, predAttr);
       if (!path.length) return null;
-      return { path, name: shortenUri(path[path.length - 1]), isList: false };
+      const terminal = path[path.length - 1];
+      const explicitFilterType = (el.getAttribute('data-rdf-filter-type') || '').trim();
+      return {
+        path,
+        name: shortenUri(terminal),
+        isList: false,
+        filterType: explicitFilterType || inferDescriptorFilterType(terminal),
+        datatype: inferDescriptorDatatype(terminal),
+      };
     })
     .filter(Boolean);
 }

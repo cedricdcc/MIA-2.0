@@ -32,9 +32,23 @@ describe("buildShaclFromDescriptors", () => {
         name: "tags",
         isList: true,
       },
+      {
+        path: ["https://example.org/image"],
+        name: "image",
+        filterType: "image",
+      },
+      {
+        path: ["https://example.org/exactType"],
+        name: "exactType",
+        datatype: "http://www.w3.org/2001/XMLSchema#dateTime",
+      },
     ]);
 
     expect(ttl).toContain("sh:datatype xsd:integer");
+    expect(ttl).toContain("sh:datatype xsd:anyURI");
+    expect(ttl).toContain(
+      "sh:datatype <http://www.w3.org/2001/XMLSchema#dateTime>"
+    );
     expect(ttl).toContain('sh:name "x"');
     expect(ttl).toContain('sh:name "tags"');
     expect(ttl).toContain("sh:maxCount 1");

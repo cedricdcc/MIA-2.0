@@ -27,12 +27,21 @@ function mapFilterTypeToXsd(filterType) {
     case "datetime":
       return "xsd:dateTime";
     case "uri":
+    case "image":
       return "xsd:anyURI";
     case "string":
       return "xsd:string";
     default:
       return null;
   }
+}
+
+function formatDatatype(datatype, filterType) {
+  if (datatype) {
+    if (datatype.startsWith("xsd:")) return datatype;
+    return `<${datatype}>`;
+  }
+  return mapFilterTypeToXsd(filterType);
 }
 
 function pathToShaclPath(path) {
@@ -49,7 +58,7 @@ function escapeTurtleString(value) {
 }
 
 /**
- * @param {Array<{ path: string[], name?: string, isList?: boolean, filterType?: string }>} descriptors
+ * @param {Array<{ path: string[], name?: string, isList?: boolean, filterType?: string, datatype?: string }>} descriptors
  * @param {{ shapeIri?: string, targetClassIri?: string }} [options]
  * @returns {string}
  */
@@ -69,16 +78,18 @@ export function buildShaclFromDescriptors(descriptors, options = {}) {
         name: d.name || lastPathSegment(d.path[d.path.length - 1]),
         isList: !!d.isList,
         filterType: d.filterType || "",
+        datatype: d.datatype || "",
       });
       continue;
     }
     const current = dedup.get(key);
     current.isList = current.isList || !!d.isList;
     if (!current.filterType && d.filterType) current.filterType = d.filterType;
+    if (!current.datatype && d.datatype) current.datatype = d.datatype;
   }
 
   const properties = [...dedup.values()].map((d) => {
-    const datatype = mapFilterTypeToXsd(d.filterType);
+    const datatype = formatDatatype(d.datatype, d.filterType);
     return [
       "  sh:property [",
       `    sh:name "${escapeTurtleString(d.name)}" ;`,
