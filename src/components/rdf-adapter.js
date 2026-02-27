@@ -170,14 +170,22 @@ export class RdfAdapter extends HTMLElement {
                 toRdfQuads(rawQuads),
                 toRdfQuads(shapeRawQuads),
               );
+              const lensClasses = Object.keys(lensObject || {});
+              const lensRows = Object.values(lensObject || {}).reduce(
+                (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+                0,
+              );
               console.info(`${ADAPTER_LOG} lens:extract:ok`, {
                 shapeSrc,
-                classes: Object.keys(lensObject || {}),
-                rows: Object.values(lensObject || {}).reduce(
-                  (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
-                  0,
-                ),
+                classes: lensClasses,
+                rows: lensRows,
               });
+              if (lensRows === 0) {
+                console.warn(`${ADAPTER_LOG} lens:extract:empty`, {
+                  shapeSrc,
+                  hint: "No rows extracted. Verify sh:targetClass, sh:path and list/class constraints.",
+                });
+              }
             } catch (err) {
               throw new Error(`shape extraction failed: ${err.message}`);
             }

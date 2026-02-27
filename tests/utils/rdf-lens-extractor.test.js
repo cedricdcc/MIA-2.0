@@ -262,4 +262,54 @@ describe("extractWithShapes", () => {
     const result = extractWithShapes(dataQuads, shapeQuads);
     expect(Object.keys(result)).toHaveLength(0);
   });
+
+  it("extracts list-based key/value pairs with fallback shape parsing", () => {
+    const dataTtl = `
+      @prefix ex: <https://example.org/> .
+      ex:doc a ex:Doc ;
+        ex:meta (
+          [ ex:key "author" ; ex:value "alice" ]
+          [ ex:key "year" ; ex:value "2024" ]
+        ) .
+    `;
+
+    const shapeTtl = `
+      @prefix sh:  <http://www.w3.org/ns/shacl#> .
+      @prefix ex:  <https://example.org/> .
+
+      [] a sh:NodeShape ;
+         sh:targetClass ex:Pair ;
+         sh:property [
+           sh:name "key" ;
+           sh:path ex:key ;
+           sh:maxCount 1 ;
+           sh:minCount 1
+         ] , [
+           sh:name "value" ;
+           sh:path ex:value ;
+           sh:maxCount 1 ;
+           sh:minCount 1
+         ] .
+
+      [] a sh:NodeShape ;
+         sh:targetClass ex:Doc ;
+         sh:property [
+           sh:name "meta" ;
+           sh:path ex:meta ;
+           sh:class ex:Pair
+         ] .
+    `;
+
+    const dataQuads = toRdfQuads(serializeQuads(parseTurtle(dataTtl)));
+    const shapeQuads = toRdfQuads(serializeQuads(parseTurtle(shapeTtl)));
+
+    const result = extractWithShapes(dataQuads, shapeQuads);
+    expect(result["https://example.org/Doc"]).toHaveLength(1);
+    expect(result["https://example.org/Doc"][0]).toEqual({
+      meta: [
+        { key: "author", value: "alice" },
+        { key: "year", value: "2024" },
+      ],
+    });
+  });
 });

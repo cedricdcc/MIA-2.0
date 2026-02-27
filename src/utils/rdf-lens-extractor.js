@@ -33,6 +33,19 @@ const {
   defaultGraph,
 } = DataFactory;
 
+const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+const RDF_FIRST = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first";
+const RDF_REST = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest";
+const RDF_NIL = "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil";
+const SH_NODE_SHAPE = "http://www.w3.org/ns/shacl#NodeShape";
+const SH_TARGET_CLASS = "http://www.w3.org/ns/shacl#targetClass";
+const SH_PROPERTY = "http://www.w3.org/ns/shacl#property";
+const SH_NAME = "http://www.w3.org/ns/shacl#name";
+const SH_PATH = "http://www.w3.org/ns/shacl#path";
+const SH_MAX_COUNT = "http://www.w3.org/ns/shacl#maxCount";
+const SH_CLASS = "http://www.w3.org/ns/shacl#class";
+const SH_DATATYPE = "http://www.w3.org/ns/shacl#datatype";
+
 // ---------------------------------------------------------------------------
 // Quad reconstruction
 // ---------------------------------------------------------------------------
@@ -134,11 +147,10 @@ export function extractWithLens(lens, subjectIri, rdfQuads) {
  */
 export function extractWithShapes(dataQuads, shapeQuads) {
   const { lenses, shapes } = extractShapes(shapeQuads);
+  const fallbackShapes = parseSimpleShapes(shapeQuads);
 
   /** @type {{ [classIri: string]: unknown[] }} */
   const result = {};
-
-  const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
 
   for (const shape of shapes) {
     const classIri = shape.ty.value;
@@ -155,9 +167,15 @@ export function extractWithShapes(dataQuads, shapeQuads) {
     const extracted = [];
     for (const subjectTerm of matchingSubjects) {
       try {
-        extracted.push(lens.execute({ id: subjectTerm, quads: dataQuads }));
+        extracted.push(normalizeExtractedValue(lens.execute({ id: subjectTerm, quads: dataQuads }), dataQuads));
       } catch {
-        // Skip subjects that don't satisfy the shape (e.g. missing required fields)
+        const fallback = extractSubjectWithFallbackShape(
+          subjectTerm,
+          classIri,
+          dataQuads,
+          fallbackShapes,
+        );
+        if (fallback !== undefined) extracted.push(fallback);
       }
     }
 
@@ -166,5 +184,240 @@ export function extractWithShapes(dataQuads, shapeQuads) {
     }
   }
 
+  for (const [classIri, shape] of fallbackShapes) {
+    if (result[classIri]) continue;
+    const matchingSubjects = dataQuads
+      .filter(
+        (q) => q.predicate.value === RDF_TYPE && q.object.value === classIri,
+      )
+      .map((q) => q.subject);
+    const extracted = matchingSubjects
+      .map((subjectTerm) =>
+        extractSubjectWithFallbackShape(
+          subjectTerm,
+          classIri,
+          dataQuads,
+          fallbackShapes,
+        ),
+      )
+      .filter((x) => x !== undefined);
+
+    if (extracted.length > 0 && shape.fields.length > 0) {
+      result[classIri] = extracted;
+    }
+  }
+
   return result;
+}
+
+function termKey(term) {
+  return `${term.termType}:${term.value}`;
+}
+
+function parseSimpleShapes(shapeQuads) {
+  const bySubject = new Map();
+  for (const q of shapeQuads) {
+    const key = termKey(q.subject);
+    if (!bySubject.has(key)) bySubject.set(key, []);
+    bySubject.get(key).push(q);
+  }
+
+  const out = new Map();
+  for (const [shapeKey, quads] of bySubject) {
+    const isNodeShape = quads.some(
+      (q) =>
+        q.predicate.value === RDF_TYPE &&
+        q.object.value === SH_NODE_SHAPE,
+    );
+    if (!isNodeShape) continue;
+
+    const targetClass = quads.find((q) => q.predicate.value === SH_TARGET_CLASS)
+      ?.object?.value;
+    if (!targetClass) continue;
+
+    const propertyTerms = quads
+      .filter((q) => q.predicate.value === SH_PROPERTY)
+      .map((q) => q.object);
+    const fields = propertyTerms
+      .map((propertyTerm) => parseSimpleProperty(propertyTerm, bySubject))
+      .filter(Boolean);
+
+    out.set(targetClass, { id: shapeKey, fields });
+  }
+
+  return out;
+}
+
+function parseSimpleProperty(propertyTerm, bySubject) {
+  const propQuads = bySubject.get(termKey(propertyTerm)) || [];
+  const name =
+    propQuads.find((q) => q.predicate.value === SH_NAME)?.object?.value || null;
+  const pathTerm = propQuads.find((q) => q.predicate.value === SH_PATH)?.object;
+  const path = parsePath(pathTerm, bySubject);
+  if (!name || path.length === 0) return null;
+
+  const maxCountRaw = propQuads.find((q) => q.predicate.value === SH_MAX_COUNT)
+    ?.object?.value;
+  const maxCount =
+    maxCountRaw !== undefined ? Number.parseInt(maxCountRaw, 10) : null;
+  const classIri = propQuads.find((q) => q.predicate.value === SH_CLASS)?.object
+    ?.value;
+  const datatype = propQuads.find((q) => q.predicate.value === SH_DATATYPE)
+    ?.object?.value;
+
+  return {
+    name,
+    path,
+    maxCount: Number.isFinite(maxCount) ? maxCount : null,
+    classIri: classIri || null,
+    datatype: datatype || null,
+  };
+}
+
+function parsePath(pathTerm, bySubject) {
+  if (!pathTerm) return [];
+  if (pathTerm.termType === "NamedNode") return [pathTerm.value];
+  if (pathTerm.termType !== "BlankNode") return [];
+  return readRdfList(pathTerm, bySubject, []).filter(
+    (term) => term.termType === "NamedNode",
+  ).map((term) => term.value);
+}
+
+function readRdfList(startTerm, bySubject, trail = []) {
+  if (!startTerm || startTerm.value === RDF_NIL) return [];
+  const key = termKey(startTerm);
+  if (trail.includes(key)) return [];
+  const nodeQuads = bySubject.get(key) || [];
+  const first = nodeQuads.find((q) => q.predicate.value === RDF_FIRST)?.object;
+  const rest = nodeQuads.find((q) => q.predicate.value === RDF_REST)?.object;
+  if (!first || !rest) return [];
+  return [first, ...readRdfList(rest, bySubject, [...trail, key])];
+}
+
+function extractSubjectWithFallbackShape(subjectTerm, classIri, dataQuads, shapeMap, trail = []) {
+  if (!subjectTerm) return undefined;
+  const loopKey = `${classIri}|${termKey(subjectTerm)}`;
+  if (trail.includes(loopKey)) return undefined;
+  const shape = shapeMap.get(classIri);
+  if (!shape) return undefined;
+
+  const out = {};
+  for (const field of shape.fields) {
+    const terms = resolvePath(subjectTerm, field.path, dataQuads);
+    const expanded = terms.flatMap((term) => expandRdfListTerm(term, dataQuads));
+    const values = expanded
+      .map((term) => {
+        if (field.classIri) {
+          return extractSubjectWithFallbackShape(
+            term,
+            field.classIri,
+            dataQuads,
+            shapeMap,
+            [...trail, loopKey],
+          );
+        }
+        return convertTermValue(term, field.datatype);
+      })
+      .filter((value) => value !== undefined);
+
+    // `maxCount 0` means the field should not be present; skip assigning output.
+    if (field.maxCount === 0) {
+      continue;
+    }
+    if (field.maxCount !== null && field.maxCount < 2) {
+      if (values.length > 0) out[field.name] = values[0];
+    } else if (values.length > 0) {
+      out[field.name] = values;
+    }
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+function resolvePath(startTerm, path, dataQuads) {
+  let current = [startTerm];
+  for (const predicateUri of path) {
+    current = current.flatMap((term) =>
+      dataQuads
+        .filter(
+          (q) =>
+            q.subject.termType === term.termType &&
+            q.subject.value === term.value &&
+            q.predicate.value === predicateUri,
+        )
+        .map((q) => q.object),
+    );
+    if (current.length === 0) break;
+  }
+  return current;
+}
+
+function expandRdfListTerm(term, dataQuads, trail = []) {
+  if (!term || term.value === RDF_NIL) return [];
+  const loopKey = termKey(term);
+  if (trail.includes(loopKey)) return [term];
+  const first = dataQuads.find(
+    (q) =>
+      q.subject.termType === term.termType &&
+      q.subject.value === term.value &&
+      q.predicate.value === RDF_FIRST,
+  )?.object;
+  const rest = dataQuads.find(
+    (q) =>
+      q.subject.termType === term.termType &&
+      q.subject.value === term.value &&
+      q.predicate.value === RDF_REST,
+  )?.object;
+  if (!first || !rest) return [term];
+  return [
+    first,
+    ...expandRdfListTerm(rest, dataQuads, [...trail, loopKey]),
+  ];
+}
+
+function convertTermValue(term, datatypeHint = null) {
+  if (!term) return undefined;
+  if (term.termType === "Literal") {
+    const datatype = (datatypeHint || term.datatype?.value || "").toLowerCase();
+    if (datatype === "http://www.w3.org/2001/xmlschema#integer") {
+      return Number.parseInt(term.value, 10);
+    }
+    if (
+      datatype === "http://www.w3.org/2001/xmlschema#decimal" ||
+      datatype === "http://www.w3.org/2001/xmlschema#double" ||
+      datatype === "http://www.w3.org/2001/xmlschema#float"
+    ) {
+      return Number.parseFloat(term.value);
+    }
+    if (datatype === "http://www.w3.org/2001/xmlschema#boolean") {
+      return term.value === "true";
+    }
+    if (datatype === "http://www.w3.org/2001/xmlschema#datetime") {
+      return new Date(term.value);
+    }
+    return term.value;
+  }
+  return term.value;
+}
+
+function normalizeExtractedValue(value, dataQuads) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeExtractedValue(item, dataQuads));
+  }
+  if (!value || typeof value !== "object") return value;
+  if (typeof value.termType === "string" && typeof value.value === "string") {
+    const expanded = expandRdfListTerm(value, dataQuads);
+    if (
+      expanded.length > 1 ||
+      (expanded.length === 1 && expanded[0].value !== value.value)
+    ) {
+      return expanded.map((term) => normalizeExtractedValue(term, dataQuads));
+    }
+    return convertTermValue(value);
+  }
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    out[key] = normalizeExtractedValue(item, dataQuads);
+  }
+  return out;
 }

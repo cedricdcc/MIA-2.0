@@ -1,0 +1,31 @@
+@prefix sh:  <http://www.w3.org/ns/shacl#> .
+@prefix ex:  <https://example.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+[] a sh:NodeShape ;
+   sh:targetClass ex:Document ;
+   sh:property [
+     sh:name "title" ;
+     sh:path ex:title ;
+     sh:datatype xsd:string ;
+     sh:maxCount 1 ;
+     sh:minCount 1
+   ] , [
+     sh:name "meta" ;
+     sh:path ex:meta ;
+     sh:class ex:MetaEntry
+   ] .
+
+[] a sh:NodeShape ;
+   sh:targetClass ex:MetaEntry ;
+   sh:property [
+     sh:name "key" ;
+     sh:path ex:key ;
+     sh:maxCount 1 ;
+     sh:minCount 1
+   ] , [
+     sh:name "value" ;
+     sh:path ex:value ;
+     sh:maxCount 1 ;
+     sh:minCount 1
+   ] .
