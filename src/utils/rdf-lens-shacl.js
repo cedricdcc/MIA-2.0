@@ -54,7 +54,8 @@ function escapeTurtleString(value) {
  * @returns {string}
  */
 export function buildShaclFromDescriptors(descriptors, options = {}) {
-  const shapeIri = options.shapeIri || "https://example.org/shapes/GeneratedShape";
+  const shapeIri =
+    options.shapeIri || "https://example.org/shapes/GeneratedShape";
   const targetClassIri =
     options.targetClassIri || "https://example.org/model/GeneratedResource";
 
