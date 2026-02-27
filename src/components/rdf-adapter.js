@@ -31,6 +31,8 @@ import {
   showError,
 } from "../utils/dom-adapter.js";
 
+const ADAPTER_LOG = "[rdf-adapter]";
+
 export class RdfAdapter extends HTMLElement {
   static get observedAttributes() {
     return ["src", "subject"];
@@ -83,6 +85,7 @@ export class RdfAdapter extends HTMLElement {
     showLoading(this._root);
 
     const urls = this._discoverSources();
+    console.info(`${ADAPTER_LOG} load:start`, { urls });
 
     if (urls.length === 0) {
       hideLoading(this._root);
@@ -91,6 +94,10 @@ export class RdfAdapter extends HTMLElement {
     }
 
     const subjectFilter = this.getAttribute("subject") ?? null;
+    console.info(`${ADAPTER_LOG} load:config`, {
+      subjectFilter,
+      shapeSrc: this.getAttribute("shape-src") ?? null,
+    });
 
     try {
       const displayTriples = []; // subject-filtered (for rendering & display)
@@ -102,9 +109,11 @@ export class RdfAdapter extends HTMLElement {
         if (signal.aborted) break;
         try {
           const { text, format } = await fetchRdf(url);
+          console.info(`${ADAPTER_LOG} fetch:ok`, { url, format, bytes: text.length });
           if (signal.aborted) break;
 
           const quads = await parseRdf(text, format, url);
+          console.info(`${ADAPTER_LOG} parse:ok`, { url, quads: quads.length });
           if (signal.aborted) break;
 
           for (const quad of quads) {
@@ -122,6 +131,7 @@ export class RdfAdapter extends HTMLElement {
             }
           }
         } catch (err) {
+          console.error(`${ADAPTER_LOG} source:error`, { url, message: err.message });
           if (!signal.aborted) {
             showError(this._root, `Failed to load ${url}: ${err.message}`);
             this.dispatchEvent(
@@ -140,9 +150,18 @@ export class RdfAdapter extends HTMLElement {
         if (shapeSrc && rawQuads.length) {
           try {
             const { text, format } = await fetchRdf(shapeSrc);
+            console.info(`${ADAPTER_LOG} shape:fetch:ok`, {
+              shapeSrc,
+              format,
+              bytes: text.length,
+            });
             let shapeRawQuads;
             try {
               shapeRawQuads = await parseRdf(text, format, shapeSrc);
+              console.info(`${ADAPTER_LOG} shape:parse:ok`, {
+                shapeSrc,
+                quads: shapeRawQuads.length,
+              });
             } catch (err) {
               throw new Error(`shape parse failed: ${err.message}`);
             }
@@ -151,10 +170,22 @@ export class RdfAdapter extends HTMLElement {
                 toRdfQuads(rawQuads),
                 toRdfQuads(shapeRawQuads),
               );
+              console.info(`${ADAPTER_LOG} lens:extract:ok`, {
+                shapeSrc,
+                classes: Object.keys(lensObject || {}),
+                rows: Object.values(lensObject || {}).reduce(
+                  (sum, list) => sum + (Array.isArray(list) ? list.length : 0),
+                  0,
+                ),
+              });
             } catch (err) {
               throw new Error(`shape extraction failed: ${err.message}`);
             }
           } catch (err) {
+            console.error(`${ADAPTER_LOG} shape:error`, {
+              shapeSrc,
+              message: err.message,
+            });
             this.dispatchEvent(
               new CustomEvent("rdf-error", {
                 detail: { message: `Failed to extract lens data from shape-src: ${err.message}`, url: shapeSrc },
@@ -167,6 +198,12 @@ export class RdfAdapter extends HTMLElement {
 
         hideLoading(this._root);
         renderTriples(this._root, displayTriples);
+        console.info(`${ADAPTER_LOG} load:complete`, {
+          triples: displayTriples.length,
+          allTriples: fullTriples.length,
+          rawQuads: rawQuads.length,
+          hasLensObject: !!lensObject,
+        });
         this.dispatchEvent(
           new CustomEvent("rdf-loaded", {
             detail: { triples: displayTriples, allTriples: fullTriples, rawQuads, lensObject },

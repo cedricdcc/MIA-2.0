@@ -54,6 +54,8 @@
 import { LitElement, html, css } from "lit";
 import { isUri, shortenUri } from "../utils/rdf-utils.js";
 
+const DISPLAY_LOG = "[rdf-display]";
+
 export class RdfDisplay extends LitElement {
   // ---------------------------------------------------------------------------
   // Styles
@@ -224,10 +226,16 @@ export class RdfDisplay extends LitElement {
     // allTriples (full unfiltered graph) is used for property-path resolution in block mode.
     // Falls back to triples when not provided (e.g. when triples property is set directly).
     this._allTriples = event.detail?.allTriples ?? null;
+    console.info(`${DISPLAY_LOG} rdf-loaded`, {
+      triples: this.triples.length,
+      allTriples: this._allTriples?.length ?? this.triples.length,
+      lensClasses: Object.keys(this.lensObject || {}),
+    });
   }
 
   _handleRdfError(event) {
     this._error = event.detail?.message ?? "An unknown error occurred";
+    console.error(`${DISPLAY_LOG} rdf-error`, { message: this._error });
   }
 
   // ---------------------------------------------------------------------------
@@ -352,6 +360,7 @@ export class RdfDisplay extends LitElement {
 
     // ── Block mode: template has at least one [data-rdf-predicate] or [data-rdf-path] element ──
     if (tmpl.content.querySelector("[data-rdf-predicate],[data-rdf-path]")) {
+      console.info(`${DISPLAY_LOG} render:template-mode`, { mode: "block", templateId: this.templateId });
       _renderBlockTemplate(host, tmpl, this.triples, this._allTriples ?? this.triples);
       return;
     }
@@ -360,6 +369,11 @@ export class RdfDisplay extends LitElement {
     const lensRows = this.lensObject ? _collectLensRows(this.lensObject) : [];
     const wantsLensPlaceholders = tmpl.innerHTML.includes("{lens:");
     if (wantsLensPlaceholders && lensRows.length) {
+      console.info(`${DISPLAY_LOG} render:template-mode`, {
+        mode: "lens",
+        templateId: this.templateId,
+        rows: lensRows.length,
+      });
       for (const row of lensRows) {
         const clone = tmpl.content.cloneNode(true);
         _fillLensPlaceholders(clone, row);
@@ -369,6 +383,11 @@ export class RdfDisplay extends LitElement {
     }
 
     // ── Legacy mode: clone once per triple ──
+    console.info(`${DISPLAY_LOG} render:template-mode`, {
+      mode: "legacy-triple",
+      templateId: this.templateId,
+      rows: this.triples.length,
+    });
     for (const triple of this.triples) {
       const clone = tmpl.content.cloneNode(true);
       _fillPlaceholders(clone, {
