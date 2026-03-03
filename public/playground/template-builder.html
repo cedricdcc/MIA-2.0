@@ -28,6 +28,10 @@
     pre { background: #111827; color: #e5e7eb; border-radius: 10px; padding: 10px; overflow: auto; font-size: 0.86rem; }
     textarea { width: 100%; min-height: 120px; }
     .live-html { border: 1px dashed #c7d2fe; border-radius: 10px; background: #ffffff; padding: 12px; min-height: 90px; }
+    .editor-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .editor-grid textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #dbe4f0; border-radius: 10px; background: #fff; }
+    .preview-shell { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #f9fafb; min-height: 100px; }
     @media (max-width: 1100px) {
       .grid { grid-template-columns: 1fr; }
     }
@@ -93,15 +97,29 @@
       <div class="panel">
         <h3>Generated SHACL</h3>
         <pre id="shaclOut"></pre>
+        <h3>RDF-lens build response</h3>
+        <pre id="lensResponseOut"></pre>
         <h3>Object structure</h3>
         <pre id="structureOut"></pre>
-        <h3>Template editor (lens object based)</h3>
-        <textarea id="templateHtml"><article><h2>{lens:title}</h2><p>{lens:spatial.bbox}</p></article></textarea>
-        <h3>Live Preview</h3>
-        <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #f9fafb; min-height: 100px;">
+        <div class="row">
+          <h3 style="margin: 0;">Template editor (HTML/CSS/JS)</h3>
+          <button id="autoBuilderBtn" type="button">Auto-build from blocks</button>
+        </div>
+        <div class="editor-grid">
+          <label>HTML</label>
+          <textarea id="templateHtml"><article><h2>{lens:title}</h2><p>{lens:spatial.bbox}</p></article></textarea>
+          <label>CSS</label>
+          <textarea id="templateCss">article{font-family:system-ui,sans-serif;padding:12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}h2{margin:0 0 8px}p{margin:0;color:#374151}</textarea>
+          <label>JS</label>
+          <textarea id="templateJs">document.addEventListener('DOMContentLoaded',()=>console.log('Template loaded'));</textarea>
+        </div>
+        <h3>rdf-display preview</h3>
+        <div class="preview-shell">
           <template id="lens-template"></template>
           <rdf-display-wrapper id="preview" template-id="lens-template"></rdf-display-wrapper>
         </div>
+        <h3>Live page preview (HTML + CSS + JS)</h3>
+        <iframe id="liveFrame" title="Live page preview" sandbox="allow-scripts"></iframe>
         <h3>Raw live HTML preview</h3>
         <div id="rawLivePreview" class="live-html"></div>
       </div>
@@ -134,10 +152,15 @@
     const loadFeedback = document.getElementById("loadFeedback");
     const builderFeedback = document.getElementById("builderFeedback");
     const shaclOut = document.getElementById("shaclOut");
+    const lensResponseOut = document.getElementById("lensResponseOut");
     const structureOut = document.getElementById("structureOut");
+    const autoBuilderBtn = document.getElementById("autoBuilderBtn");
     const templateHtml = document.getElementById("templateHtml");
+    const templateCss = document.getElementById("templateCss");
+    const templateJs = document.getElementById("templateJs");
     const lensTemplate = document.getElementById("lens-template");
     const preview = document.getElementById("preview");
+    const liveFrame = document.getElementById("liveFrame");
     const rawLivePreview = document.getElementById("rawLivePreview");
 
     console.log("Elements found:", {
@@ -160,6 +183,15 @@
     function getLocal(uri = "") {
       const idx = Math.max(uri.lastIndexOf("#"), uri.lastIndexOf("/"));
       return idx >= 0 ? uri.slice(idx + 1) : uri;
+    }
+
+    function escapeHtml(value = "") {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function expandTerm(term) {
@@ -324,14 +356,35 @@
     classSelect.addEventListener("change", renderPropertyChips);
     addBlockBtn.addEventListener("click", () => addBlockRow());
 
-    function refreshPreview(descriptors) {
+    function buildLensRow(descriptors) {
       const row = {};
       for (const d of descriptors) row[d.name] = d.example || "";
+      return row;
+    }
+
+    function autoBuildTemplateFiles(descriptors) {
+      const blocks = descriptors.map((d) => {
+        const safeFieldClass = d.name.replace(/[^a-zA-Z0-9_-]/g, "-");
+        const safeLensKey = d.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        return `  <section class="field field-${safeFieldClass}"><label>${escapeHtml(d.name)}</label><div>{lens:${safeLensKey}}</div></section>`;
+      }).join("\n");
+      templateHtml.value = `<article class="lens-card">\n${blocks || "  <p>No fields configured yet.</p>"}\n</article>`;
+      templateCss.value = `.lens-card{font-family:system-ui,sans-serif;padding:16px;border:1px solid #dbe4f0;border-radius:12px;background:#fff}.field{display:grid;grid-template-columns:160px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9}.field:last-child{border-bottom:0}.field label{font-weight:600;color:#1e293b}.field div{color:#334155;word-break:break-word}`;
+      templateJs.value = `document.addEventListener('DOMContentLoaded',()=>{console.log('Auto-generated template ready')});`;
+    }
+
+    function refreshPreview(descriptors) {
+      const row = buildLensRow(descriptors);
       lensTemplate.innerHTML = templateHtml.value;
-      rawLivePreview.innerHTML = templateHtml.value.replace(/\{lens:([^}]+)\}/g, (_, key) => {
+      const htmlWithValues = templateHtml.value.replace(/\{lens:([^}]+)\}/g, (_, key) => {
         const v = row[key];
         return v === undefined || v === null ? `[missing:${key}]` : String(v);
       });
+      rawLivePreview.innerHTML = htmlWithValues;
+      const safeCssForDoc = templateCss.value.replace(/<\/style/gi, "<\\/style");
+      const safeHtmlForDoc = htmlWithValues.replace(/<\/script/gi, "<\\/script");
+      const safeJsForDoc = templateJs.value.replace(/<\/script/gi, "<\\/script");
+      liveFrame.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"><style>${safeCssForDoc}</style></head><body>${safeHtmlForDoc}<script>${safeJsForDoc}<\/script></body></html>`;
       preview.dispatchEvent(
         new CustomEvent("rdf-loaded", {
           detail: {
@@ -367,15 +420,32 @@
         null,
         2,
       );
+      lensResponseOut.textContent = JSON.stringify(
+        {
+          engine: "rdf-lens",
+          targetClass,
+          shapeIri: `${PREFIXES.generated}${shapeName}`,
+          blocks: descriptors.length,
+          lensObject: { Generated: [buildLensRow(descriptors)] },
+        },
+        null,
+        2,
+      );
       refreshPreview(descriptors);
       showFeedback(builderFeedback, "SHACL and preview updated.", true);
     });
 
-    // Update preview when template HTML changes
-    templateHtml.addEventListener("input", () => {
+    autoBuilderBtn.addEventListener("click", () => {
       const { descriptors } = buildDescriptors();
+      autoBuildTemplateFiles(descriptors);
       refreshPreview(descriptors);
     });
+
+    // Update preview when template editor values change
+    [templateHtml, templateCss, templateJs].forEach((editor) => editor.addEventListener("input", () => {
+      const { descriptors } = buildDescriptors();
+      refreshPreview(descriptors);
+    }));
 
     addBlockRow({ name: "title", path: "dct:title", datatype: "xsd:string", example: "Sample title" });
     addBlockRow({
@@ -384,6 +454,7 @@
       datatype: "geosparql:wktLiteral",
       example: "POLYGON((...))",
     });
+    lensResponseOut.textContent = JSON.stringify({ engine: "rdf-lens", status: "Awaiting SHACL generation" }, null, 2);
     refreshPreview(buildDescriptors().descriptors);
   </script>
 </body>
