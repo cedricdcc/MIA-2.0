@@ -54,6 +54,8 @@
 import { LitElement, html, css } from "lit";
 import { isUri, shortenUri } from "../utils/rdf-utils.js";
 
+const DISPLAY_LOG = "[rdf-display]";
+
 export class RdfDisplay extends LitElement {
   // ---------------------------------------------------------------------------
   // Styles
@@ -154,6 +156,15 @@ export class RdfDisplay extends LitElement {
     .rdf-error {
       color: #c00;
     }
+    .rdf-template-warning {
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      background: #fffbeb;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+    }
   `;
 
   // ---------------------------------------------------------------------------
@@ -173,6 +184,7 @@ export class RdfDisplay extends LitElement {
      * inside the shadow DOM and is therefore not reachable by page-level CSS).
      */
     templateStyles: { type: String, attribute: "template-styles" },
+    lensObject: { state: true },
     _error: { state: true },
     /** Full unfiltered graph (from rdf-loaded.allTriples) — used for property-path resolution. */
     _allTriples: { state: true },
@@ -188,6 +200,7 @@ export class RdfDisplay extends LitElement {
     this.displayMode = "list";
     this.templateId = null;
     this.templateStyles = null;
+    this.lensObject = null;
     this._error = null;
     this._allTriples = null;
 
@@ -218,13 +231,20 @@ export class RdfDisplay extends LitElement {
   _handleRdfLoaded(event) {
     this._error = null;
     this.triples = event.detail?.triples ?? [];
+    this.lensObject = event.detail?.lensObject ?? null;
     // allTriples (full unfiltered graph) is used for property-path resolution in block mode.
     // Falls back to triples when not provided (e.g. when triples property is set directly).
     this._allTriples = event.detail?.allTriples ?? null;
+    console.info(`${DISPLAY_LOG} rdf-loaded`, {
+      triples: this.triples.length,
+      allTriples: this._allTriples?.length ?? this.triples.length,
+      lensClasses: Object.keys(this.lensObject || {}),
+    });
   }
 
   _handleRdfError(event) {
     this._error = event.detail?.message ?? "An unknown error occurred";
+    console.error(`${DISPLAY_LOG} rdf-error`, { message: this._error });
   }
 
   // ---------------------------------------------------------------------------
@@ -334,7 +354,8 @@ export class RdfDisplay extends LitElement {
     // Inject custom template styles into the shadow root (idempotent).
     this._injectTemplateStyles();
 
-    if (!this.templateId || !this.triples.length) return;
+    const lensRows = this.lensObject ? _collectLensRows(this.lensObject) : [];
+    if (!this.templateId || (!this.triples.length && !lensRows.length)) return;
 
     const host = this.shadowRoot?.querySelector(".rdf-template-host");
     if (!host) return;
@@ -349,11 +370,54 @@ export class RdfDisplay extends LitElement {
 
     // ── Block mode: template has at least one [data-rdf-predicate] or [data-rdf-path] element ──
     if (tmpl.content.querySelector("[data-rdf-predicate],[data-rdf-path]")) {
+      console.info(`${DISPLAY_LOG} render:template-mode`, { mode: "block", templateId: this.templateId });
       _renderBlockTemplate(host, tmpl, this.triples, this._allTriples ?? this.triples);
       return;
     }
 
+    // ── Lens mode: when lens extraction data is available, render once from flat object ──
+    const wantsLensPlaceholders = tmpl.innerHTML.includes("{lens:");
+    if (wantsLensPlaceholders && lensRows.length) {
+      const requiredLensKeys = _extractLensPlaceholderKeys(tmpl.innerHTML);
+      const missingAcrossRows = new Set();
+      console.info(`${DISPLAY_LOG} render:template-mode`, {
+        mode: "lens",
+        templateId: this.templateId,
+        rows: lensRows.length,
+      });
+      for (const row of lensRows) {
+        const clone = tmpl.content.cloneNode(true);
+        const missingKeys = _fillLensPlaceholders(clone, row, requiredLensKeys);
+        for (const key of missingKeys) missingAcrossRows.add(key);
+        host.appendChild(clone);
+      }
+      if (missingAcrossRows.size) {
+        const warning = document.createElement("div");
+        warning.className = "rdf-template-warning";
+        warning.textContent = `Template fields missing in lens data: ${[
+          ...missingAcrossRows,
+        ]
+          .map((k) => `{lens:${k}}`)
+          .join(", ")}`;
+        host.prepend(warning);
+      }
+      return;
+    }
+    if (wantsLensPlaceholders && !lensRows.length) {
+      const warning = document.createElement("div");
+      warning.className = "rdf-template-warning";
+      warning.textContent =
+        "Lens template placeholders were found, but no lens object rows are available.";
+      host.appendChild(warning);
+      return;
+    }
+
     // ── Legacy mode: clone once per triple ──
+    console.info(`${DISPLAY_LOG} render:template-mode`, {
+      mode: "legacy-triple",
+      templateId: this.templateId,
+      rows: this.triples.length,
+    });
     for (const triple of this.triples) {
       const clone = tmpl.content.cloneNode(true);
       _fillPlaceholders(clone, {
@@ -723,6 +787,48 @@ function _resolvePropertyPath(allTriples, startSubjects, pathSteps) {
     if (!subjects.size) return []; // Dead-end path
   }
   return [];
+}
+
+function _collectLensRows(lensObject) {
+  if (!lensObject || typeof lensObject !== "object") return [];
+  const collected = [];
+  for (const group of Object.values(lensObject)) {
+    if (Array.isArray(group)) {
+      for (const row of group) {
+        if (row && typeof row === "object") collected.push(row);
+      }
+    }
+  }
+  return collected;
+}
+
+function _fillLensPlaceholders(fragment, lensRow, requiredKeys = []) {
+  const replacements = {};
+  const missingKeys = [];
+  const keys =
+    requiredKeys.length > 0 ? requiredKeys : Object.keys(lensRow || {});
+  for (const key of keys) {
+    const value = lensRow?.[key];
+    const isMissing = value === undefined || value === null;
+    if (isMissing) {
+      missingKeys.push(key);
+    }
+    const strValue = Array.isArray(value)
+      ? value.map((v) => (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""))).join(", ")
+      : (value && typeof value === "object" ? JSON.stringify(value) : String(value ?? ""));
+    replacements[`{lens:${key}}`] = isMissing ? `[missing:${key}]` : strValue;
+  }
+  if (Object.keys(replacements).length === 0) return [];
+  _fillPlaceholders(fragment, replacements);
+  return missingKeys;
+}
+
+function _extractLensPlaceholderKeys(templateHtml = "") {
+  const keys = new Set();
+  const re = /\{lens:([^}]+)\}/g;
+  let m;
+  while ((m = re.exec(templateHtml)) !== null) keys.add(m[1].trim());
+  return [...keys].filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------

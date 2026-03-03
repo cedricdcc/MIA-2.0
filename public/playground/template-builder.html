@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lens Block Template Builder</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f3f6fb; color: #1f2937; }
+    .wrap { width: 100%; margin: 0; padding: 16px 20px 24px; box-sizing: border-box; }
+    h1 { margin: 0 0 10px; font-size: 1.6rem; }
+    .muted { color: #4b5563; font-size: 0.95rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+    .panel { background: #fff; border: 1px solid #dbe4f0; border-radius: 12px; padding: 14px; box-shadow: 0 1px 2px rgba(17,24,39,.04); }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+    input, select, textarea, button { font: inherit; }
+    input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; }
+    button { border: 1px solid #c7d2fe; background: #eef2ff; color: #1e3a8a; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+    button.danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chips-label-collapsible { display: none; margin-top: 6px; }
+    .chip { border: 1px solid #dbeafe; background: #eff6ff; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; }
+    .error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; padding: 8px; border-radius: 8px; margin-top: 8px; }
+    .ok { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 8px; border-radius: 8px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eef2f7; padding: 8px; text-align: left; vertical-align: top; }
+    th { font-size: 0.85rem; color: #374151; }
+    code { background: #f3f4f6; border-radius: 5px; padding: 2px 5px; }
+    pre { background: #111827; color: #e5e7eb; border-radius: 10px; padding: 10px; overflow: auto; font-size: 0.86rem; }
+    textarea { width: 100%; min-height: 120px; }
+    .live-html { border: 1px dashed #c7d2fe; border-radius: 10px; background: #ffffff; padding: 12px; min-height: 90px; }
+    .editor-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .editor-grid textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86rem; }
+    iframe { width: 100%; min-height: 220px; border: 1px solid #dbe4f0; border-radius: 10px; background: #fff; }
+    .preview-shell { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #f9fafb; min-height: 100px; }
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Lens block template builder</h1>
+    <div class="muted">
+      Build a user-friendly block structure from RDF, generate SHACL (including property paths), and preview template rendering from lens-object values.
+    </div>
+    <div class="row">
+      <a href="/playground/">← Back to extraction playground</a>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="row">
+          <input id="rdfUri" style="min-width:420px;flex:1;" placeholder="RDF URI (e.g. https://data.emobon.embrc.eu/metadata.ttl or ../rdf-data/example.ttl)" value="../rdf-data/example.ttl" />
+          <button id="loadBtn" type="button" class="primary">Load RDF</button>
+        </div>
+        <div class="row" style="gap:6px; font-size:0.85rem;">
+          <span style="color:#6b7280;">Quick load:</span>
+          <button type="button" class="chip" onclick="document.getElementById('rdfUri').value='../rdf-data/example.ttl'">Example</button>
+          <button type="button" class="chip" onclick="document.getElementById('rdfUri').value='../rdf-data/marineinfo-collection.ttl'">Marine Info</button>
+          <button type="button" class="chip" onclick="document.getElementById('rdfUri').value='https://data.emobon.embrc.eu/metadata.ttl'">EMO BON</button>
+        </div>
+        <div class="row">
+          <label>Target class</label>
+          <select id="classSelect"></select>
+        </div>
+        <div class="muted">Suggested properties for selected class (click to add a block):</div>
+        <div class="chips" id="propertyChips"></div>
+        <div class="muted chips-label-collapsible" id="pathChipsLabel">Property-path suggestions:</div>
+        <div class="chips" id="pathChips"></div>
+        <div id="loadFeedback"></div>
+
+        <hr />
+
+        <div class="row">
+          <button id="addBlockBtn">Add block</button>
+          <button id="addShapeBtn" type="button">Add shape from current blocks</button>
+          <button id="generateBtn" class="primary">Generate SHACL + preview</button>
+        </div>
+        <div class="muted">Queued shapes: <span id="shapeCount">0</span></div>
+        <div id="shapeList"></div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Path (space-separated, supports prefixes)</th>
+              <th>Datatype (optional)</th>
+              <th>List</th>
+              <th>Example</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="blocksBody"></tbody>
+        </table>
+        <div class="muted">
+          Prefixes supported in path/datatype: <code>dct:</code> <code>dcat:</code> <code>xsd:</code> <code>geosparql:</code>. Example path:
+          <code>dct:spatial dcat:bbox</code>
+        </div>
+        <div class="muted">Use dots in block names for nested fields (e.g. <code>spatial.bbox</code> → <code>{lens:spatial.bbox}</code>).</div>
+        <div id="builderFeedback"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Generated SHACL</h3>
+        <pre id="shaclOut"></pre>
+        <h3>RDF-lens build response</h3>
+        <pre id="lensResponseOut"></pre>
+        <h3>Object structure</h3>
+        <pre id="structureOut"></pre>
+        <div class="row">
+          <h3 style="margin: 0;">Template editor (HTML/CSS/JS)</h3>
+          <button id="autoBuilderBtn" type="button">Auto-build from blocks</button>
+        </div>
+        <div class="editor-grid">
+          <label>HTML</label>
+          <textarea id="templateHtml"><article><h2>{lens:title}</h2><p>{lens:spatial.bbox}</p></article></textarea>
+          <label>CSS</label>
+          <textarea id="templateCss">article{font-family:system-ui,sans-serif;padding:12px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}h2{margin:0 0 8px}p{margin:0;color:#374151}</textarea>
+          <label>JS</label>
+          <textarea id="templateJs">document.addEventListener('DOMContentLoaded',()=>console.log('Template loaded'));</textarea>
+        </div>
+        <h3>rdf-display preview</h3>
+        <div class="preview-shell">
+          <template id="lens-template"></template>
+          <rdf-display-wrapper id="preview" template-id="lens-template"></rdf-display-wrapper>
+        </div>
+        <h3>Live page preview (HTML + CSS + JS)</h3>
+        <iframe id="liveFrame" title="Live page preview" sandbox="allow-scripts"></iframe>
+        <h3>Raw live HTML preview</h3>
+        <div id="rawLivePreview" class="live-html"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import "../../src/components/rdf-display-wrapper.js";
+    import { parseRdf } from "../../src/utils/rdf-parser.js";
+    import { buildShaclFromDescriptors } from "../../src/utils/rdf-lens-shacl.js";
+    import { extractWithShapes, toRdfQuads } from "../../src/utils/rdf-lens-extractor.js";
+
+    console.log("Template builder script loaded");
+
+    const PREFIXES = {
+      generated: "http://generated.example.org/shapes#",
+      sh: "http://www.w3.org/ns/shacl#",
+      xsd: "http://www.w3.org/2001/XMLSchema#",
+      dct: "http://purl.org/dc/terms/",
+      dcat: "http://www.w3.org/ns/dcat#",
+      geosparql: "http://www.opengis.net/ont/geosparql#",
+    };
+
+    const rdfUri = document.getElementById("rdfUri");
+    const loadBtn = document.getElementById("loadBtn");
+    const classSelect = document.getElementById("classSelect");
+    const propertyChips = document.getElementById("propertyChips");
+    const pathChips = document.getElementById("pathChips");
+    const pathChipsLabel = document.getElementById("pathChipsLabel");
+    const blocksBody = document.getElementById("blocksBody");
+    const addBlockBtn = document.getElementById("addBlockBtn");
+    const addShapeBtn = document.getElementById("addShapeBtn");
+    const generateBtn = document.getElementById("generateBtn");
+    const shapeCount = document.getElementById("shapeCount");
+    const shapeList = document.getElementById("shapeList");
+    const loadFeedback = document.getElementById("loadFeedback");
+    const builderFeedback = document.getElementById("builderFeedback");
+    const shaclOut = document.getElementById("shaclOut");
+    const lensResponseOut = document.getElementById("lensResponseOut");
+    const structureOut = document.getElementById("structureOut");
+    const autoBuilderBtn = document.getElementById("autoBuilderBtn");
+    const templateHtml = document.getElementById("templateHtml");
+    const templateCss = document.getElementById("templateCss");
+    const templateJs = document.getElementById("templateJs");
+    const lensTemplate = document.getElementById("lens-template");
+    const preview = document.getElementById("preview");
+    const liveFrame = document.getElementById("liveFrame");
+    const rawLivePreview = document.getElementById("rawLivePreview");
+
+    console.log("Elements found:", {
+      rdfUri: !!rdfUri,
+      loadBtn: !!loadBtn,
+      classSelect: !!classSelect,
+      preview: !!preview
+    });
+
+    let quads = [];
+    let classSubjects = new Map();
+    let classProperties = new Map();
+    let shapeDrafts = [];
+    let currentLensObject = { Generated: [] };
+
+    function showFeedback(el, msg, ok = false) {
+      el.innerHTML = msg ? `<div class="${ok ? "ok" : "error"}">${msg}</div>` : "";
+    }
+
+    const termValue = (t) => (t && typeof t === "object" ? t.value : t);
+    const serializeQuads = (quadList = []) =>
+      quadList.map((q) => ({
+        subject: { value: q.subject.value, termType: q.subject.termType },
+        predicate: { value: q.predicate.value, termType: q.predicate.termType },
+        object: {
+          value: q.object.value,
+          termType: q.object.termType,
+          datatype: q.object.datatype?.value && q.object.datatype?.termType
+            ? { value: q.object.datatype.value, termType: q.object.datatype.termType }
+            : undefined,
+          language: q.object.language || undefined,
+        },
+        graph: { value: q.graph.value, termType: q.graph.termType },
+      }));
+
+    function getLocal(uri = "") {
+      const idx = Math.max(uri.lastIndexOf("#"), uri.lastIndexOf("/"));
+      return idx >= 0 ? uri.slice(idx + 1) : uri;
+    }
+
+    function escapeHtml(value = "") {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function expandTerm(term) {
+      if (/^https?:\/\//.test(term)) return term;
+      const [prefix, local] = term.split(":");
+      if (local && PREFIXES[prefix]) return `${PREFIXES[prefix]}${local}`;
+      return null;
+    }
+
+    function addBlockRow(initial = {}) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input data-role="name" value="${initial.name || ""}" placeholder="title" /></td>
+        <td><input data-role="path" value="${initial.path || ""}" placeholder="dct:title OR dct:spatial dcat:bbox" style="min-width:270px;" /></td>
+        <td><input data-role="datatype" value="${initial.datatype || ""}" placeholder="xsd:string" /></td>
+        <td><input data-role="isList" type="checkbox" ${initial.isList ? "checked" : ""} /></td>
+        <td><input data-role="example" value="${initial.example || ""}" placeholder="example value" /></td>
+        <td><button class="danger" data-role="remove">Remove</button></td>
+      `;
+      tr.querySelector('[data-role="remove"]').addEventListener("click", () => tr.remove());
+      blocksBody.appendChild(tr);
+    }
+
+    function buildDescriptors() {
+      const descriptors = [];
+      const errors = [];
+      [...blocksBody.querySelectorAll("tr")].forEach((tr, index) => {
+        const name = tr.querySelector('[data-role="name"]').value.trim();
+        const pathRaw = tr.querySelector('[data-role="path"]').value.trim();
+        const datatypeRaw = tr.querySelector('[data-role="datatype"]').value.trim();
+        const isList = tr.querySelector('[data-role="isList"]').checked;
+        const example = tr.querySelector('[data-role="example"]').value.trim();
+        if (!name) errors.push(`Row ${index + 1}: name is required.`);
+        if (!pathRaw) errors.push(`Row ${index + 1}: path is required.`);
+        const steps = pathRaw.split(/\s+/).filter(Boolean);
+        const expandedPath = steps.map(expandTerm);
+        if (expandedPath.some((v) => !v)) {
+          errors.push(`Row ${index + 1}: path contains unknown term(s). Use full URI or supported prefixes.`);
+        }
+        const datatypeExpanded = datatypeRaw ? (datatypeRaw.startsWith("xsd:") ? datatypeRaw : expandTerm(datatypeRaw)) : "";
+        if (datatypeRaw && !datatypeExpanded) {
+          errors.push(`Row ${index + 1}: datatype must be full URI or known prefix form.`);
+        }
+        descriptors.push({
+          name,
+          path: expandedPath.filter(Boolean),
+          datatype: datatypeExpanded || "",
+          isList,
+          example,
+        });
+      });
+      return { descriptors, errors };
+    }
+
+    function renderClassChoices() {
+      classSelect.innerHTML = "";
+      for (const [cls, subjects] of classSubjects.entries()) {
+        const opt = document.createElement("option");
+        opt.value = cls;
+        opt.textContent = `${getLocal(cls)} (${subjects.size} subjects)`;
+        classSelect.appendChild(opt);
+      }
+      renderPropertyChips();
+    }
+
+    function renderPropertyChips() {
+      propertyChips.innerHTML = "";
+      pathChips.innerHTML = "";
+      pathChipsLabel.style.display = "none";
+      const cls = classSelect.value;
+      const props = classProperties.get(cls) || [];
+      for (const prop of props) {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.type = "button";
+        chip.textContent = getLocal(prop);
+        chip.title = prop;
+        chip.addEventListener("click", () => {
+          addBlockRow({
+            name: getLocal(prop),
+            path: prop,
+            datatype: "xsd:string",
+            example: `Example ${getLocal(prop)}`,
+          });
+          renderPathChips(prop);
+        });
+        propertyChips.appendChild(chip);
+      }
+    }
+
+    function renderPathChips(baseProp) {
+      pathChips.innerHTML = "";
+      const cls = classSelect.value;
+      const subjects = classSubjects.get(cls) || new Set();
+      const objects = new Set();
+      for (const q of quads) {
+        if (subjects.has(termValue(q.subject)) && termValue(q.predicate) === baseProp) {
+          if (q.object?.termType === "NamedNode" || q.object?.termType === "BlankNode") objects.add(termValue(q.object));
+        }
+      }
+      const nextPredicates = new Set();
+      const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+      for (const q of quads) {
+        if (objects.has(termValue(q.subject)) && termValue(q.predicate) !== RDF_TYPE) {
+          nextPredicates.add(termValue(q.predicate));
+        }
+      }
+      if (!nextPredicates.size) {
+        pathChipsLabel.style.display = "none";
+        return;
+      }
+      pathChipsLabel.style.display = "block";
+      for (const pred of [...nextPredicates].sort()) {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.type = "button";
+        chip.textContent = `${getLocal(baseProp)} → ${getLocal(pred)}`;
+        chip.title = `${baseProp} ${pred}`;
+        chip.addEventListener("click", () => {
+          addBlockRow({
+            name: `${getLocal(baseProp)}.${getLocal(pred)}`,
+            path: `${baseProp} ${pred}`,
+            datatype: "xsd:string",
+            example: `Example ${getLocal(pred)}`,
+          });
+        });
+        pathChips.appendChild(chip);
+      }
+    }
+
+    function renderShapeDrafts() {
+      shapeCount.textContent = String(shapeDrafts.length);
+      shapeList.innerHTML = "";
+      shapeDrafts.forEach((draft, idx) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.margin = "6px 0";
+        row.innerHTML = `<code>${escapeHtml(getLocal(draft.targetClass))}Shape</code><span class="muted">${draft.descriptors.length} blocks</span>`;
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "danger";
+        removeBtn.textContent = "Remove";
+        removeBtn.addEventListener("click", () => {
+          shapeDrafts = shapeDrafts.filter((_, i) => i !== idx);
+          renderShapeDrafts();
+        });
+        row.appendChild(removeBtn);
+        shapeList.appendChild(row);
+      });
+    }
+
+    function getActiveShapeSpecs(currentTargetClass, currentDescriptors) {
+      return (shapeDrafts.length ? shapeDrafts : [{ targetClass: currentTargetClass, descriptors: currentDescriptors }])
+        .filter((s) => s.descriptors.length);
+    }
+
+    console.log("Setting up loadBtn event listener, button element:", loadBtn);
+    loadBtn.addEventListener("click", async () => {
+      console.log("Load RDF button clicked");
+      const uri = rdfUri.value.trim();
+      console.log("URI value:", uri);
+      if (!uri) {
+        showFeedback(loadFeedback, "Please provide an RDF URI.");
+        return;
+      }
+      try {
+        loadBtn.disabled = true;
+        showFeedback(loadFeedback, "Loading RDF…", true);
+        console.log("Fetching RDF from:", uri);
+        
+        const response = await fetch(uri, {
+          mode: 'cors',
+          headers: {
+            'Accept': 'text/turtle, application/rdf+xml, application/ld+json, */*'
+          }
+        });
+        
+        console.log("Response status:", response.status, response.statusText);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const text = await response.text();
+        console.log("Fetched text length:", text.length);
+        
+        const contentType = response.headers.get("content-type") || "";
+        let format = "text/turtle";
+        if (contentType.includes("application/ld+json")) format = "application/ld+json";
+        else if (contentType.includes("application/rdf+xml")) format = "application/rdf+xml";
+        else if (contentType.includes("application/n-triples")) format = "application/n-triples";
+        quads = await parseRdf(text, format, uri);
+        
+        classSubjects = new Map();
+        classProperties = new Map();
+        const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+        const subjectTypes = new Map();
+
+        for (const q of quads) {
+          const s = termValue(q.subject);
+          if (!subjectTypes.has(s)) subjectTypes.set(s, new Set());
+          if (termValue(q.predicate) === RDF_TYPE) subjectTypes.get(s).add(termValue(q.object));
+        }
+        for (const [s, types] of subjectTypes.entries()) {
+          for (const t of types) {
+            if (!classSubjects.has(t)) classSubjects.set(t, new Set());
+            classSubjects.get(t).add(s);
+          }
+        }
+        for (const [cls, subjects] of classSubjects.entries()) {
+          const props = new Set();
+          for (const q of quads) {
+            if (subjects.has(termValue(q.subject)) && termValue(q.predicate) !== RDF_TYPE) props.add(termValue(q.predicate));
+          }
+          classProperties.set(cls, [...props].sort());
+        }
+        if (!classSubjects.size) throw new Error("No typed subjects found (rdf:type).");
+        renderClassChoices();
+        showFeedback(loadFeedback, `Loaded ${quads.length} triples. Pick a class and start adding blocks.`, true);
+        console.log("Successfully loaded RDF:", { quads: quads.length, classes: classSubjects.size });
+      } catch (error) {
+        console.error("Error loading RDF:", error);
+        const parseLike = /parse|syntax|token|unexpected/i.test(String(error?.message || ""));
+        showFeedback(
+          loadFeedback,
+          parseLike
+            ? `RDF parsing failed: ${error.message}`
+            : `Failed to load RDF: ${error.message}`,
+        );
+      } finally {
+        loadBtn.disabled = false;
+      }
+    });
+
+    classSelect.addEventListener("change", renderPropertyChips);
+    addBlockBtn.addEventListener("click", () => addBlockRow());
+    addShapeBtn.addEventListener("click", () => {
+      const targetClass = classSelect.value;
+      if (!targetClass) {
+        showFeedback(builderFeedback, "Load RDF and select a class first.");
+        return;
+      }
+      const { descriptors, errors } = buildDescriptors();
+      if (errors.length) {
+        showFeedback(builderFeedback, errors.join("<br>"));
+        return;
+      }
+      shapeDrafts.push({ targetClass, descriptors });
+      renderShapeDrafts();
+      showFeedback(builderFeedback, `Added shape draft for ${getLocal(targetClass)}.`, true);
+    });
+
+    function buildLensRow(descriptors, lensObject = currentLensObject) {
+      const firstClass = Object.keys(lensObject || {})[0];
+      const firstRow = firstClass && Array.isArray(lensObject[firstClass]) ? lensObject[firstClass][0] : null;
+      const row = {};
+      for (const d of descriptors) {
+        row[d.name] = firstRow && typeof firstRow === "object" && firstRow[d.name] !== undefined ? firstRow[d.name] : (d.example || "");
+      }
+      return row;
+    }
+
+    function autoBuildTemplateFiles(descriptors) {
+      const blocks = descriptors.map((d) => {
+        const safeFieldClass = d.name.replace(/[^a-zA-Z0-9_-]/g, "-");
+        const safeLensKey = d.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+        return `  <section class="field field-${safeFieldClass}"><label>${escapeHtml(d.name)}</label><div>{lens:${safeLensKey}}</div></section>`;
+      }).join("\n");
+      templateHtml.value = `<article class="lens-card">\n${blocks || "  <p>No fields configured yet.</p>"}\n</article>`;
+      templateCss.value = `.lens-card{font-family:system-ui,sans-serif;padding:16px;border:1px solid #dbe4f0;border-radius:12px;background:#fff}.field{display:grid;grid-template-columns:160px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9}.field:last-child{border-bottom:0}.field label{font-weight:600;color:#1e293b}.field div{color:#334155;word-break:break-word}`;
+      templateJs.value = `document.addEventListener('DOMContentLoaded',()=>{console.log('Auto-generated template ready')});`;
+    }
+
+    function refreshPreview(descriptors) {
+      const row = buildLensRow(descriptors);
+      lensTemplate.innerHTML = templateHtml.value;
+      const htmlWithValues = templateHtml.value.replace(/\{lens:([^}]+)\}/g, (_, key) => {
+        const v = row[key];
+        return v === undefined || v === null ? `[missing:${key}]` : String(v);
+      });
+      rawLivePreview.innerHTML = htmlWithValues;
+      const safeCssForDoc = templateCss.value.replace(/<\/style/gi, "<\\/style");
+      const safeHtmlForDoc = htmlWithValues.replace(/<\/script/gi, "<\\/script");
+      const safeJsForDoc = templateJs.value.replace(/<\/script/gi, "<\\/script");
+      liveFrame.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"><style>${safeCssForDoc}</style></head><body>${safeHtmlForDoc}<script>${safeJsForDoc}<\/script></body></html>`;
+      preview.dispatchEvent(
+        new CustomEvent("rdf-loaded", {
+          detail: {
+            triples: [],
+            lensObject: { Generated: [row] },
+          },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
+
+    generateBtn.addEventListener("click", async () => {
+      const targetClass = classSelect.value;
+      if (!targetClass) {
+        showFeedback(builderFeedback, "Load RDF and select a class first.");
+        return;
+      }
+      const { descriptors, errors } = buildDescriptors();
+      if (errors.length) {
+        showFeedback(builderFeedback, errors.join("<br>"));
+        return;
+      }
+      const shapeSpecs = getActiveShapeSpecs(targetClass, descriptors);
+      const ttl = shapeSpecs
+        .map((spec) => {
+          const shapeName = `${getLocal(spec.targetClass) || "Generated"}Shape`;
+          return buildShaclFromDescriptors(spec.descriptors, {
+            shapeIri: `${PREFIXES.generated}${shapeName}`,
+            targetClassIri: spec.targetClass,
+            prefixes: PREFIXES,
+          });
+        })
+        .join("\n\n");
+      try {
+        const shapeQuads = await parseRdf(ttl, "text/turtle");
+        const serializedData = serializeQuads(quads);
+        const serializedShapes = serializeQuads(shapeQuads);
+        const extraction = extractWithShapes(toRdfQuads(serializedData), toRdfQuads(serializedShapes));
+        currentLensObject = extraction && typeof extraction === "object" ? extraction : {};
+      } catch (error) {
+        console.warn("RDF-lens extraction failed in template builder", error);
+        currentLensObject = {};
+      }
+      shaclOut.textContent = ttl || "# No valid descriptors";
+      structureOut.textContent = JSON.stringify(
+        descriptors.map((d) => ({ name: d.name, path: d.path, datatype: d.datatype || null, isList: d.isList })),
+        null,
+        2,
+      );
+      lensResponseOut.textContent = JSON.stringify(
+        {
+          engine: "rdf-lens",
+          targetClass,
+          shapes: shapeSpecs.length,
+          blocks: shapeSpecs.reduce((sum, s) => sum + s.descriptors.length, 0),
+          lensObject: currentLensObject,
+        },
+        null,
+        2,
+      );
+      refreshPreview(descriptors);
+      showFeedback(builderFeedback, "SHACL and preview updated.", true);
+    });
+
+    autoBuilderBtn.addEventListener("click", () => {
+      const { descriptors } = buildDescriptors();
+      autoBuildTemplateFiles(descriptors);
+      refreshPreview(descriptors);
+    });
+
+    // Update preview when template editor values change
+    [templateHtml, templateCss, templateJs].forEach((editor) => editor.addEventListener("input", () => {
+      const { descriptors } = buildDescriptors();
+      refreshPreview(descriptors);
+    }));
+
+    addBlockRow({ name: "title", path: "dct:title", datatype: "xsd:string", example: "Sample title" });
+    addBlockRow({
+      name: "spatial.bbox",
+      path: "dct:spatial dcat:bbox",
+      datatype: "geosparql:wktLiteral",
+      example: "POLYGON((...))",
+    });
+    lensResponseOut.textContent = JSON.stringify({ engine: "rdf-lens", status: "Awaiting SHACL generation" }, null, 2);
+    renderShapeDrafts();
+    refreshPreview(buildDescriptors().descriptors);
+  </script>
+</body>
+</html>

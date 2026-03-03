@@ -1,0 +1,9 @@
+@prefix ex: <https://example.org/> .
+
+ex:doc-1 a ex:Document ;
+  ex:title "Lens list extraction demo" ;
+  ex:meta (
+    [ ex:key "author" ; ex:value "Alice" ]
+    [ ex:key "year" ; ex:value "2024" ]
+    [ ex:key "status" ; ex:value "published" ]
+  ) .
