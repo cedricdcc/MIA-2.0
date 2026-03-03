@@ -18,6 +18,7 @@
     button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
     button.danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
     .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chips-label-collapsible { display: none; margin-top: 6px; }
     .chip { border: 1px solid #dbeafe; background: #eff6ff; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; }
     .error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; padding: 8px; border-radius: 8px; margin-top: 8px; }
     .ok { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 8px; border-radius: 8px; margin-top: 8px; }
@@ -65,14 +66,19 @@
         </div>
         <div class="muted">Suggested properties for selected class (click to add a block):</div>
         <div class="chips" id="propertyChips"></div>
+        <div class="muted chips-label-collapsible" id="pathChipsLabel">Property-path suggestions:</div>
+        <div class="chips" id="pathChips"></div>
         <div id="loadFeedback"></div>
 
         <hr />
 
         <div class="row">
           <button id="addBlockBtn">Add block</button>
+          <button id="addShapeBtn" type="button">Add shape from current blocks</button>
           <button id="generateBtn" class="primary">Generate SHACL + preview</button>
         </div>
+        <div class="muted">Queued shapes: <span id="shapeCount">0</span></div>
+        <div id="shapeList"></div>
         <table>
           <thead>
             <tr>
@@ -147,9 +153,14 @@
     const loadBtn = document.getElementById("loadBtn");
     const classSelect = document.getElementById("classSelect");
     const propertyChips = document.getElementById("propertyChips");
+    const pathChips = document.getElementById("pathChips");
+    const pathChipsLabel = document.getElementById("pathChipsLabel");
     const blocksBody = document.getElementById("blocksBody");
     const addBlockBtn = document.getElementById("addBlockBtn");
+    const addShapeBtn = document.getElementById("addShapeBtn");
     const generateBtn = document.getElementById("generateBtn");
+    const shapeCount = document.getElementById("shapeCount");
+    const shapeList = document.getElementById("shapeList");
     const loadFeedback = document.getElementById("loadFeedback");
     const builderFeedback = document.getElementById("builderFeedback");
     const shaclOut = document.getElementById("shaclOut");
@@ -174,6 +185,7 @@
     let quads = [];
     let classSubjects = new Map();
     let classProperties = new Map();
+    let shapeDrafts = [];
     let currentLensObject = { Generated: [] };
 
     function showFeedback(el, msg, ok = false) {
@@ -275,6 +287,8 @@
 
     function renderPropertyChips() {
       propertyChips.innerHTML = "";
+      pathChips.innerHTML = "";
+      pathChipsLabel.style.display = "none";
       const cls = classSelect.value;
       const props = classProperties.get(cls) || [];
       for (const prop of props) {
@@ -290,9 +304,76 @@
             datatype: "xsd:string",
             example: `Example ${getLocal(prop)}`,
           });
+          renderPathChips(prop);
         });
         propertyChips.appendChild(chip);
       }
+    }
+
+    function renderPathChips(baseProp) {
+      pathChips.innerHTML = "";
+      const cls = classSelect.value;
+      const subjects = classSubjects.get(cls) || new Set();
+      const objects = new Set();
+      for (const q of quads) {
+        if (subjects.has(termValue(q.subject)) && termValue(q.predicate) === baseProp) {
+          if (q.object?.termType === "NamedNode" || q.object?.termType === "BlankNode") objects.add(termValue(q.object));
+        }
+      }
+      const nextPredicates = new Set();
+      const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+      for (const q of quads) {
+        if (objects.has(termValue(q.subject)) && termValue(q.predicate) !== RDF_TYPE) {
+          nextPredicates.add(termValue(q.predicate));
+        }
+      }
+      if (!nextPredicates.size) {
+        pathChipsLabel.style.display = "none";
+        return;
+      }
+      pathChipsLabel.style.display = "block";
+      for (const pred of [...nextPredicates].sort()) {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.type = "button";
+        chip.textContent = `${getLocal(baseProp)} → ${getLocal(pred)}`;
+        chip.title = `${baseProp} ${pred}`;
+        chip.addEventListener("click", () => {
+          addBlockRow({
+            name: `${getLocal(baseProp)}.${getLocal(pred)}`,
+            path: `${baseProp} ${pred}`,
+            datatype: "xsd:string",
+            example: `Example ${getLocal(pred)}`,
+          });
+        });
+        pathChips.appendChild(chip);
+      }
+    }
+
+    function renderShapeDrafts() {
+      shapeCount.textContent = String(shapeDrafts.length);
+      shapeList.innerHTML = "";
+      shapeDrafts.forEach((draft, idx) => {
+        const row = document.createElement("div");
+        row.className = "row";
+        row.style.margin = "6px 0";
+        row.innerHTML = `<code>${escapeHtml(getLocal(draft.targetClass))}Shape</code><span class="muted">${draft.descriptors.length} blocks</span>`;
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "danger";
+        removeBtn.textContent = "Remove";
+        removeBtn.addEventListener("click", () => {
+          shapeDrafts = shapeDrafts.filter((_, i) => i !== idx);
+          renderShapeDrafts();
+        });
+        row.appendChild(removeBtn);
+        shapeList.appendChild(row);
+      });
+    }
+
+    function getActiveShapeSpecs(currentTargetClass, currentDescriptors) {
+      return (shapeDrafts.length ? shapeDrafts : [{ targetClass: currentTargetClass, descriptors: currentDescriptors }])
+        .filter((s) => s.descriptors.length);
     }
 
     console.log("Setting up loadBtn event listener, button element:", loadBtn);
@@ -371,6 +452,21 @@
 
     classSelect.addEventListener("change", renderPropertyChips);
     addBlockBtn.addEventListener("click", () => addBlockRow());
+    addShapeBtn.addEventListener("click", () => {
+      const targetClass = classSelect.value;
+      if (!targetClass) {
+        showFeedback(builderFeedback, "Load RDF and select a class first.");
+        return;
+      }
+      const { descriptors, errors } = buildDescriptors();
+      if (errors.length) {
+        showFeedback(builderFeedback, errors.join("<br>"));
+        return;
+      }
+      shapeDrafts.push({ targetClass, descriptors });
+      renderShapeDrafts();
+      showFeedback(builderFeedback, `Added shape draft for ${getLocal(targetClass)}.`, true);
+    });
 
     function buildLensRow(descriptors, lensObject = currentLensObject) {
       const firstClass = Object.keys(lensObject || {})[0];
@@ -428,12 +524,17 @@
         showFeedback(builderFeedback, errors.join("<br>"));
         return;
       }
-      const shapeName = `${getLocal(targetClass) || "Generated"}Shape`;
-      const ttl = buildShaclFromDescriptors(descriptors, {
-        shapeIri: `${PREFIXES.generated}${shapeName}`,
-        targetClassIri: targetClass,
-        prefixes: PREFIXES,
-      });
+      const shapeSpecs = getActiveShapeSpecs(targetClass, descriptors);
+      const ttl = shapeSpecs
+        .map((spec) => {
+          const shapeName = `${getLocal(spec.targetClass) || "Generated"}Shape`;
+          return buildShaclFromDescriptors(spec.descriptors, {
+            shapeIri: `${PREFIXES.generated}${shapeName}`,
+            targetClassIri: spec.targetClass,
+            prefixes: PREFIXES,
+          });
+        })
+        .join("\n\n");
       try {
         const shapeQuads = await parseRdf(ttl, "text/turtle");
         const serializedData = serializeQuads(quads);
@@ -454,8 +555,8 @@
         {
           engine: "rdf-lens",
           targetClass,
-          shapeIri: `${PREFIXES.generated}${shapeName}`,
-          blocks: descriptors.length,
+          shapes: shapeSpecs.length,
+          blocks: shapeSpecs.reduce((sum, s) => sum + s.descriptors.length, 0),
           lensObject: currentLensObject,
         },
         null,
@@ -485,6 +586,7 @@
       example: "POLYGON((...))",
     });
     lensResponseOut.textContent = JSON.stringify({ engine: "rdf-lens", status: "Awaiting SHACL generation" }, null, 2);
+    renderShapeDrafts();
     refreshPreview(buildDescriptors().descriptors);
   </script>
 </body>
