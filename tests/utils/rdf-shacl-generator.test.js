@@ -304,6 +304,24 @@ describe("SHACL Shape Generator", () => {
       const turtle = await result.serialize();
       expect(turtle).toBeDefined();
     });
+
+    it("compact mode can generate SHACL without blank nodes", async () => {
+      const result = generateShaclShapes(store, {
+        compactMode: true,
+        noBlankNodes: true,
+        includeEnumeration: false,
+      });
+
+      const turtle = await result.serialize();
+      const parsed = new Parser().parse(turtle);
+      const hasBlankNode = parsed.some(
+        (q) =>
+          q.subject.termType === "BlankNode" ||
+          q.object.termType === "BlankNode",
+      );
+
+      expect(hasBlankNode).toBe(false);
+    });
   });
 
   describe("generateShaclFromTurtle", () => {

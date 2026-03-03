@@ -201,39 +201,13 @@
     .triples-display {
       font-family: "Monaco", "Courier New", monospace;
       font-size: 0.85em;
-      line-height: 1.6;
-    }
-
-    .triple {
-      margin-bottom: 12px;
-      padding: 10px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
       background: #f8f9fa;
-      border-left: 4px solid #667eea;
-      border-radius: 4px;
-    }
-
-    .triple-subject {
-      color: #2c3e50;
-      font-weight: 500;
-    }
-
-    .triple-predicate {
-      color: #e74c3c;
-      margin: 0 5px;
-    }
-
-    .triple-object {
-      color: #27ae60;
-    }
-
-    .triple-datatype {
-      color: #9b59b6;
-      font-size: 0.85em;
-    }
-
-    .triple-language {
-      color: #16a085;
-      font-size: 0.85em;
+      border: 1px solid #e9ecef;
+      border-radius: 6px;
+      padding: 12px;
     }
 
     .shacl-display {
@@ -381,12 +355,6 @@
               value=""
             />
           </div>
-          <div style="display: flex; gap: 10px; align-items: flex-end">
-            <label style="display: flex; gap: 8px; align-items: center; cursor: pointer; margin: 0">
-              <input type="checkbox" id="compactModeToggle" />
-              <span style="font-size: 0.9em">Compact Mode</span>
-            </label>
-          </div>
           <div class="button-group">
             <button class="btn-primary" id="fetchBtn">Fetch & Generate</button>
             <button class="btn-secondary" id="clearBtn">Clear</button>
@@ -432,9 +400,8 @@
             color: #333;
           "
         >
-          <strong>💡 Compact Mode:</strong> Generates SHACL using named property
-          shapes with <code>sh:node</code> references instead of inline blank
-          nodes — much smaller files and reusable definitions!
+          <strong>💡 SHACL Output:</strong> Playground generation uses named node
+          shapes and property shapes and avoids blank nodes in the serialized SHACL.
         </div>
 
         <div id="messageContainer"></div>
@@ -481,9 +448,7 @@
     import { fetchRdf } from "../../src/utils/rdf-fetcher.js";
     import { parseRdf } from "../../src/utils/rdf-parser.js";
     import { generateShaclShapes } from "../../src/utils/rdf-shacl-generator.js";
-    import { Store, DataFactory, Parser } from "n3";
-
-    const df = DataFactory;
+    import { Store, Parser } from "n3";
 
     // State
     let currentTriples = [];
@@ -493,7 +458,6 @@
     const rdfUriInput = document.getElementById("rdfUri");
     const fetchBtn = document.getElementById("fetchBtn");
     const clearBtn = document.getElementById("clearBtn");
-    const compactModeToggle = document.getElementById("compactModeToggle");
     const triplesContainer = document.getElementById("triplesContainer");
     const shaclContainer = document.getElementById("shaclContainer");
     const messageContainer = document.getElementById("messageContainer");
@@ -567,12 +531,12 @@
           shapeNamespace: "http://example.org/shapes/",
           propertyShapeNamespace: "http://example.org/propertyShapes/",
           includeCardinality: true,
-          includeEnumeration: true,
-          enumerationLimit: 5,
-          compactMode: compactModeToggle.checked,
+          compactMode: true,
+          noBlankNodes: true,
         });
 
         currentShaclTurtle = await shapes.serialize();
+        const shaclAnalysis = analyzeShacl(currentShaclTurtle);
 
         // Step 5: Display SHACL
         displayShacl(currentShaclTurtle);
@@ -581,9 +545,16 @@
         displayStats(currentTriples, shapes.quads);
 
         showMessage(
-          `✓ Generated SHACL with ${shapes.quads.length} shape quads (${compactModeToggle.checked ? 'compact' : 'verbose'} mode)`,
+          `✓ Generated SHACL with ${shapes.quads.length} shape quads`,
           "success"
         );
+        if (!shaclAnalysis.valid) {
+          showMessage(`SHACL validation failed: ${escapeHtml(shaclAnalysis.error)}`, "error");
+        } else if (shaclAnalysis.blankNodes > 0) {
+          showMessage(`SHACL contains ${shaclAnalysis.blankNodes} blank nodes`, "error");
+        } else {
+          showMessage("✓ SHACL validation passed (no blank nodes)", "success");
+        }
       } catch (error) {
         showMessage(
           `Error: ${error.message}`,
@@ -610,21 +581,17 @@
 
       copyTriplesBtn.style.display = "block";
 
-      const html = triples
-        .map(
-          (triple) => `
-        <div class="triple">
-          <div class="triple-subject">${escapeHtml(shortenUri(triple.subject))}</div>
-          <div class="triple-predicate">${escapeHtml(shortenUri(triple.predicate))}</div>
-          <div class="triple-object">${escapeHtml(shortenUri(triple.object))}</div>
-          ${triple.objectDatatype ? `<div class="triple-datatype">@type ${escapeHtml(shortenUri(triple.objectDatatype))}</div>` : ""}
-          ${triple.objectLang ? `<div class="triple-language">@lang ${escapeHtml(triple.objectLang)}</div>` : ""}
-        </div>
-      `
-        )
-        .join("");
+      const lines = triples.map((triple) => {
+        const suffix = [
+          triple.objectDatatype ? `^^${shortenUri(triple.objectDatatype)}` : "",
+          triple.objectLang ? `@${triple.objectLang}` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return `${shortenUri(triple.subject)} → ${shortenUri(triple.predicate)} → ${shortenUri(triple.object)}${suffix ? ` ${suffix}` : ""}`;
+      });
 
-      triplesContainer.innerHTML = `<div class="triples-display">${html}</div>`;
+      triplesContainer.innerHTML = `<pre class="triples-display">${escapeHtml(lines.join("\n"))}</pre>`;
     }
 
     function displayShacl(shaclTurtle) {
@@ -739,6 +706,20 @@
       const div = document.createElement("div");
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function analyzeShacl(turtle) {
+      try {
+        const quads = new Parser({ format: "text/turtle" }).parse(turtle);
+        const blankNodes = quads.filter(
+          (q) =>
+            q.subject.termType === "BlankNode" ||
+            q.object.termType === "BlankNode",
+        ).length;
+        return { valid: true, blankNodes };
+      } catch (error) {
+        return { valid: false, blankNodes: 0, error: error.message };
+      }
     }
   </script>
 </body>

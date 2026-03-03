@@ -536,11 +536,11 @@ export function createRdfList(items, quads) {
 }
 
 /**
-/**
  * Main function: Generate complete SHACL shapes from a triplestore
  * @param {Store} store - N3 Store with RDF data
  * @param {Object} options - Configuration options
  *   - compactMode: use named shapes + sh:node (default: false)
+ *   - noBlankNodes: when compactMode is enabled, skip list-based constraints that require blank nodes
  * @returns {Object} { store, serialize } method to serialize to Turtle
  */
 export function generateShaclShapes(store, options = {}) {
@@ -633,6 +633,7 @@ export function generateShaclShapesCompact(store, options = {}) {
     includeCardinality = true,
     includeEnumeration = true,
     enumerationLimit = 5,
+    noBlankNodes = false,
   } = options;
 
   const shapesStore = new Store();
@@ -746,7 +747,7 @@ export function generateShaclShapesCompact(store, options = {}) {
     }
 
     // sh:languageIn
-    if (propOptions.languages && propOptions.languages.size > 0) {
+    if (!noBlankNodes && propOptions.languages && propOptions.languages.size > 0) {
       const langArray = Array.from(propOptions.languages).map((lang) =>
         df.literal(lang, df.namedNode(NS.rdf + "langString")),
       );
@@ -760,7 +761,7 @@ export function generateShaclShapesCompact(store, options = {}) {
     }
 
     // sh:in (enumeration)
-    if (propOptions.enumValues && propOptions.enumValues.length > 0) {
+    if (!noBlankNodes && propOptions.enumValues && propOptions.enumValues.length > 0) {
       quads.push(
         df.quad(
           shapeNode,
