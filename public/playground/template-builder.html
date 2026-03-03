@@ -130,6 +130,7 @@
     import "../../src/components/rdf-display-wrapper.js";
     import { parseRdf } from "../../src/utils/rdf-parser.js";
     import { buildShaclFromDescriptors } from "../../src/utils/rdf-lens-shacl.js";
+    import { extractWithShapes, toRdfQuads } from "../../src/utils/rdf-lens-extractor.js";
 
     console.log("Template builder script loaded");
 
@@ -173,12 +174,27 @@
     let quads = [];
     let classSubjects = new Map();
     let classProperties = new Map();
+    let currentLensObject = { Generated: [] };
 
     function showFeedback(el, msg, ok = false) {
       el.innerHTML = msg ? `<div class="${ok ? "ok" : "error"}">${msg}</div>` : "";
     }
 
     const termValue = (t) => (t && typeof t === "object" ? t.value : t);
+    const serializeQuads = (quadList = []) =>
+      quadList.map((q) => ({
+        subject: { value: q.subject.value, termType: q.subject.termType },
+        predicate: { value: q.predicate.value, termType: q.predicate.termType },
+        object: {
+          value: q.object.value,
+          termType: q.object.termType,
+          datatype: q.object.datatype?.value && q.object.datatype?.termType
+            ? { value: q.object.datatype.value, termType: q.object.datatype.termType }
+            : undefined,
+          language: q.object.language || undefined,
+        },
+        graph: { value: q.graph.value, termType: q.graph.termType },
+      }));
 
     function getLocal(uri = "") {
       const idx = Math.max(uri.lastIndexOf("#"), uri.lastIndexOf("/"));
@@ -356,9 +372,13 @@
     classSelect.addEventListener("change", renderPropertyChips);
     addBlockBtn.addEventListener("click", () => addBlockRow());
 
-    function buildLensRow(descriptors) {
+    function buildLensRow(descriptors, lensObject = currentLensObject) {
+      const firstClass = Object.keys(lensObject || {})[0];
+      const firstRow = firstClass && Array.isArray(lensObject[firstClass]) ? lensObject[firstClass][0] : null;
       const row = {};
-      for (const d of descriptors) row[d.name] = d.example || "";
+      for (const d of descriptors) {
+        row[d.name] = firstRow && typeof firstRow === "object" && firstRow[d.name] !== undefined ? firstRow[d.name] : (d.example || "");
+      }
       return row;
     }
 
@@ -397,7 +417,7 @@
       );
     }
 
-    generateBtn.addEventListener("click", () => {
+    generateBtn.addEventListener("click", async () => {
       const targetClass = classSelect.value;
       if (!targetClass) {
         showFeedback(builderFeedback, "Load RDF and select a class first.");
@@ -414,6 +434,16 @@
         targetClassIri: targetClass,
         prefixes: PREFIXES,
       });
+      try {
+        const shapeQuads = await parseRdf(ttl, "text/turtle");
+        const serializedData = serializeQuads(quads);
+        const serializedShapes = serializeQuads(shapeQuads);
+        const extraction = extractWithShapes(toRdfQuads(serializedData), toRdfQuads(serializedShapes));
+        currentLensObject = extraction && typeof extraction === "object" ? extraction : {};
+      } catch (error) {
+        console.warn("RDF-lens extraction failed in template builder", error);
+        currentLensObject = {};
+      }
       shaclOut.textContent = ttl || "# No valid descriptors";
       structureOut.textContent = JSON.stringify(
         descriptors.map((d) => ({ name: d.name, path: d.path, datatype: d.datatype || null, isList: d.isList })),
@@ -426,7 +456,7 @@
           targetClass,
           shapeIri: `${PREFIXES.generated}${shapeName}`,
           blocks: descriptors.length,
-          lensObject: { Generated: [buildLensRow(descriptors)] },
+          lensObject: currentLensObject,
         },
         null,
         2,
