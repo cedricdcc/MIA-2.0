@@ -400,8 +400,8 @@
             color: #333;
           "
         >
-          <strong>💡 SHACL Output:</strong> Playground generation uses named node
-          shapes and property shapes and avoids blank nodes in the serialized SHACL.
+          <strong>💡 SHACL Output:</strong> Playground generation uses classic node
+          shapes with inline <code>sh:property [ ... ]</code> constraints.
         </div>
 
         <div id="messageContainer"></div>
@@ -530,9 +530,9 @@
         const shapes = generateShaclShapes(store, {
           shapeNamespace: "http://example.org/shapes/",
           propertyShapeNamespace: "http://example.org/propertyShapes/",
+          // Keep classic inline sh:property blocks to match requested SHACL format.
           includeCardinality: true,
-          compactMode: true,
-          noBlankNodes: true,
+          includeEnumeration: false,
         });
 
         currentShaclTurtle = await shapes.serialize();

@@ -575,7 +575,7 @@ export function generateShaclShapes(store, options = {}) {
       return new Promise((resolve, reject) => {
         const writer = new Writer({
           prefixes: {
-            rdf: NS.rdf + "#",
+            rdf: NS.rdf,
             rdfs: NS.rdfs,
             sh: NS.sh,
             xsd: NS.xsd,
@@ -900,7 +900,7 @@ export function generateShaclShapesCompact(store, options = {}) {
       return new Promise((resolve, reject) => {
         const writer = new Writer({
           prefixes: {
-            rdf: NS.rdf + "#",
+            rdf: NS.rdf,
             rdfs: NS.rdfs,
             sh: NS.sh,
             xsd: NS.xsd,

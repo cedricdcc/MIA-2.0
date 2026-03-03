@@ -322,6 +322,9 @@ describe("SHACL Shape Generator", () => {
       const turtle = await result.serialize();
 
       expect(turtle).toContain("@prefix");
+      expect(turtle).toContain(
+        "@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.",
+      );
       expect(turtle).toContain("sh:NodeShape");
       expect(turtle).toContain("sh:targetClass");
     });
