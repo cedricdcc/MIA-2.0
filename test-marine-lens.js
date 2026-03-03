@@ -13,53 +13,157 @@ import {
   extractWithShapes,
 } from "./src/utils/rdf-lens-extractor.js";
 
-const MARINE_COLLECTION_URL = "https://marineinfo.org/id/collection/619";
+const MARINE_COLLECTION_URL = "https://data.emobon.embrc.eu/metadata.ttl";
 
 /**
  * Define your SHACL shape here.
  * Using simple local namespaces like the unit tests
  */
 const SHACL_SHAPE = `
-@prefix sh:  <http://www.w3.org/ns/shacl#> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix dct: <http://purl.org/dc/terms/> .
-@prefix schema: <https://schema.org/> .
-@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix sh:       <http://www.w3.org/ns/shacl#> .
+@prefix xsd:      <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcat:     <http://www.w3.org/ns/dcat#> .
+@prefix dct:      <http://purl.org/dc/terms/> .
+@prefix foaf:     <http://xmlns.com/foaf/0.1/> .
+@prefix geosparql:<http://www.opengis.net/ont/geosparql#> .
+@prefix schema:   <http://schema.org/> .
+@prefix ex:       <http://example.org/shapes/emobon#> .
 
-[] a sh:NodeShape ;
-  sh:targetClass dcat:Catalog ;
-  sh:property [
-    sh:datatype xsd:string ;
-    sh:name "title" ;
-    sh:path dct:title ;
-    sh:minCount 1 ;
-    sh:maxCount 1
-  ] , [
-    sh:datatype xsd:string ;
-    sh:name "name" ;
-    sh:path schema:name ;
-    sh:minCount 1 ;
-    sh:maxCount 1
-  ] , [
-    sh:datatype xsd:string ;
-    sh:name "description" ;
-    sh:path dct:description ;
-    sh:maxCount 1
-  ] , [
-    sh:datatype xsd:anyURI ;
-    sh:name "publisher" ;
-    sh:path dct:publisher ;
-    sh:maxCount 1
-  ] , [
-    sh:datatype xsd:string ;
-    sh:name "identifier" ;
-    sh:path dct:identifier ;
-    sh:maxCount 1
-  ] , [
-    sh:datatype xsd:anyURI ;
-    sh:name "keywords" ;
-    sh:path schema:keywords
-  ] .
+# ───────────────────────────────────────────────
+# Lens for the main Catalog → becomes root object
+# ───────────────────────────────────────────────
+
+ex:EmobonCatalog
+    a sh:NodeShape ;
+    sh:targetClass dcat:Catalog ;
+
+    # Basic catalog metadata
+    sh:property [
+        sh:name "id" ;
+        sh:path dct:identifier ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ; sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:name "title" ;
+        sh:path dct:title ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:name "description" ;
+        sh:path dct:description ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+    ] ;
+
+    # Nested datasets (multi-valued → array in JS)
+    sh:property [
+        sh:name "datasets" ;
+        sh:path dcat:dataset ;
+        sh:class dcat:Dataset ;
+        sh:node ex:EmobonDataset ;
+    ] ;
+
+    # Optional nested sub-catalog
+    sh:property [
+        sh:name "analysisCluster" ;
+        sh:path dcat:catalog ;
+        sh:class dcat:Catalog ;
+        sh:maxCount 1 ;
+        sh:node ex:EmobonAnalysisCluster ;
+    ] ;
+
+    sh:closed false .   # allow extra props if needed; rdf-lens ignores unknown
+
+
+# ───────────────────────────────────────────────
+# Dataset lens (nested under catalog.datasets)
+# ───────────────────────────────────────────────
+
+ex:EmobonDataset
+    a sh:NodeShape ;
+
+    sh:property [
+        sh:name "title" ;
+        sh:path dct:title ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:name "description" ;
+        sh:path dct:description ;
+        sh:datatype xsd:string ;
+    ] ;
+
+    # Multi-hop path: dataset → spatial → bbox (WKT string)
+    sh:property [
+        sh:name "bboxWkt" ;
+        sh:path ( dct:spatial dcat:bbox ) ;
+        sh:datatype geosparql:wktLiteral ;
+        sh:maxCount 1 ;
+    ] ;
+
+    # Multi-hop path: dataset → distribution → accessURL
+    sh:property [
+        sh:name "accessUrl" ;
+        sh:path ( dcat:distribution dcat:accessURL ) ;
+        sh:nodeKind sh:IRI ;
+        sh:maxCount 1 ;
+    ] ;
+
+    # Direct link to GitHub repo / crate (common in the data)
+    sh:property [
+        sh:name "sourceRepo" ;
+        sh:path schema:item ;
+        sh:nodeKind sh:IRI ;
+        sh:maxCount 1 ;
+    ] ;
+
+    sh:closed false .
+
+
+# ───────────────────────────────────────────────
+# Nested analysis cluster catalog (simplified)
+# ───────────────────────────────────────────────
+
+ex:EmobonAnalysisCluster
+    a sh:NodeShape ;
+
+    sh:property [
+        sh:name "title" ;
+        sh:path dct:title ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+    ] ;
+
+    # Could add datasets here too if needed
+    sh:property [
+        sh:name "datasets" ;
+        sh:path dcat:dataset ;
+        sh:node ex:EmobonDataset ;
+    ] ;
+
+    sh:closed false .
+
+
+# Optional: Person lens (if you want to extract contacts/creators separately)
+ex:EmobonContactPerson
+    a sh:NodeShape ;
+    sh:targetClass foaf:Person ;
+
+    sh:property [
+        sh:name "Person.name" ;
+        sh:path foaf:name ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+    ] ;
+    sh:property [
+        sh:name "Person.email" ;
+        sh:path foaf:mbox ;
+        sh:nodeKind sh:IRI ;
+        sh:maxCount 1 ;
+    ] .
 `;
 
 /**
