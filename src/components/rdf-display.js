@@ -354,7 +354,8 @@ export class RdfDisplay extends LitElement {
     // Inject custom template styles into the shadow root (idempotent).
     this._injectTemplateStyles();
 
-    if (!this.templateId || !this.triples.length) return;
+    const lensRows = this.lensObject ? _collectLensRows(this.lensObject) : [];
+    if (!this.templateId || (!this.triples.length && !lensRows.length)) return;
 
     const host = this.shadowRoot?.querySelector(".rdf-template-host");
     if (!host) return;
@@ -375,7 +376,6 @@ export class RdfDisplay extends LitElement {
     }
 
     // ── Lens mode: when lens extraction data is available, render once from flat object ──
-    const lensRows = this.lensObject ? _collectLensRows(this.lensObject) : [];
     const wantsLensPlaceholders = tmpl.innerHTML.includes("{lens:");
     if (wantsLensPlaceholders && lensRows.length) {
       const requiredLensKeys = _extractLensPlaceholderKeys(tmpl.innerHTML);

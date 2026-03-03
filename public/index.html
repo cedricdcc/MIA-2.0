@@ -153,18 +153,16 @@
 
   <h2>8. &lt;rdf-display-wrapper&gt; – lens-first wrapper</h2>
   <section>
-    <pre>&lt;rdf-display-wrapper template-id="lens-card"&gt;
-  &lt;rdf-adapter
-    src="./rdf-data/example.ttl"
-    shape-src="./rdf-data/example-shape.ttl"
-  &gt;&lt;/rdf-adapter&gt;
-&lt;/rdf-display-wrapper&gt;</pre>
-    <rdf-display-wrapper template-id="lens-card">
-      <rdf-adapter
-        src="./rdf-data/example.ttl"
-        shape-src="./rdf-data/example-shape.ttl"
-      ></rdf-adapter>
-    </rdf-display-wrapper>
+    <pre>&lt;rdf-display-wrapper
+  src="./rdf-data/example.ttl"
+  shape-src="./rdf-data/example-shape.ttl"
+  template-id="lens-card"
+&gt;&lt;/rdf-display-wrapper&gt;</pre>
+    <rdf-display-wrapper
+      src="./rdf-data/example.ttl"
+      shape-src="./rdf-data/example-shape.ttl"
+      template-id="lens-card"
+    ></rdf-display-wrapper>
   </section>
 
   <script type="module" src="/src/components/rdf-adapter.js"></script>
