@@ -42,8 +42,14 @@
     <div class="grid">
       <div class="panel">
         <div class="row">
-          <input id="rdfUri" style="min-width:420px;flex:1;" placeholder="RDF URI (e.g. https://example.org/data.ttl)" />
-          <button id="loadBtn" class="primary">Load RDF</button>
+          <input id="rdfUri" style="min-width:420px;flex:1;" placeholder="RDF URI (e.g. https://data.emobon.embrc.eu/metadata.ttl or ../rdf-data/example.ttl)" value="../rdf-data/example.ttl" />
+          <button id="loadBtn" type="button" class="primary">Load RDF</button>
+        </div>
+        <div class="row" style="gap:6px; font-size:0.85rem;">
+          <span style="color:#6b7280;">Quick load:</span>
+          <button type="button" class="chip" onclick="document.getElementById('rdfUri').value='../rdf-data/example.ttl'">Example</button>
+          <button type="button" class="chip" onclick="document.getElementById('rdfUri').value='../rdf-data/marineinfo-collection.ttl'">Marine Info</button>
+          <button type="button" class="chip" onclick="document.getElementById('rdfUri').value='https://data.emobon.embrc.eu/metadata.ttl'">EMO BON</button>
         </div>
         <div class="row">
           <label>Target class</label>
@@ -87,16 +93,21 @@
         <pre id="structureOut"></pre>
         <h3>Template editor (lens object based)</h3>
         <textarea id="templateHtml"><article><h2>{lens:title}</h2><p>{lens:spatial.bbox}</p></article></textarea>
-        <template id="lens-template"></template>
-        <rdf-display-wrapper id="preview" template-id="lens-template"></rdf-display-wrapper>
+        <h3>Live Preview</h3>
+        <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #f9fafb; min-height: 100px;">
+          <template id="lens-template"></template>
+          <rdf-display-wrapper id="preview" template-id="lens-template"></rdf-display-wrapper>
+        </div>
       </div>
     </div>
   </div>
 
   <script type="module">
+    import { Parser } from 'https://esm.sh/n3@1.17.3';
     import "../../src/components/rdf-display-wrapper.js";
     import { buildShaclFromDescriptors } from "../../src/utils/rdf-lens-shacl.js";
-    import { parseRdf } from "../../src/utils/rdf-parser.js";
+
+    console.log("Template builder script loaded");
 
     const PREFIXES = {
       generated: "http://generated.example.org/shapes#",
@@ -121,6 +132,13 @@
     const templateHtml = document.getElementById("templateHtml");
     const lensTemplate = document.getElementById("lens-template");
     const preview = document.getElementById("preview");
+
+    console.log("Elements found:", {
+      rdfUri: !!rdfUri,
+      loadBtn: !!loadBtn,
+      classSelect: !!classSelect,
+      preview: !!preview
+    });
 
     let quads = [];
     let classSubjects = new Map();
@@ -222,8 +240,11 @@
       }
     }
 
+    console.log("Setting up loadBtn event listener, button element:", loadBtn);
     loadBtn.addEventListener("click", async () => {
+      console.log("Load RDF button clicked");
       const uri = rdfUri.value.trim();
+      console.log("URI value:", uri);
       if (!uri) {
         showFeedback(loadFeedback, "Please provide an RDF URI.");
         return;
@@ -231,10 +252,35 @@
       try {
         loadBtn.disabled = true;
         showFeedback(loadFeedback, "Loading RDF…", true);
-        const response = await fetch(uri);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        console.log("Fetching RDF from:", uri);
+        
+        const response = await fetch(uri, {
+          mode: 'cors',
+          headers: {
+            'Accept': 'text/turtle, application/rdf+xml, application/ld+json, */*'
+          }
+        });
+        
+        console.log("Response status:", response.status, response.statusText);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         const text = await response.text();
-        quads = await parseRdf(text, "text/turtle", uri);
+        console.log("Fetched text length:", text.length);
+        
+        // Parse RDF using N3
+        quads = await new Promise((resolve, reject) => {
+          const parser = new Parser({ format: 'text/turtle' });
+          const quadArray = [];
+          parser.parse(text, (error, quad) => {
+            if (error) {
+              reject(error);
+            } else if (quad) {
+              quadArray.push(quad);
+            } else {
+              resolve(quadArray);
+            }
+          });
+        });
+        
         classSubjects = new Map();
         classProperties = new Map();
         const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
@@ -261,7 +307,9 @@
         if (!classSubjects.size) throw new Error("No typed subjects found (rdf:type).");
         renderClassChoices();
         showFeedback(loadFeedback, `Loaded ${quads.length} triples. Pick a class and start adding blocks.`, true);
+        console.log("Successfully loaded RDF:", { quads: quads.length, classes: classSubjects.size });
       } catch (error) {
+        console.error("Error loading RDF:", error);
         const parseLike = /parse|syntax|token|unexpected/i.test(String(error?.message || ""));
         showFeedback(
           loadFeedback,
@@ -318,6 +366,14 @@
       );
       refreshPreview(descriptors);
       showFeedback(builderFeedback, "SHACL and preview updated.", true);
+    });
+
+    // Update preview when template HTML changes
+    templateHtml.addEventListener("input", () => {
+      const { descriptors } = buildDescriptors();
+      if (descriptors.length > 0) {
+        refreshPreview(descriptors);
+      }
     });
 
     addBlockRow({ name: "title", path: "dct:title", datatype: "xsd:string", example: "Sample title" });
