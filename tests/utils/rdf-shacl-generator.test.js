@@ -107,6 +107,39 @@ describe("SHACL Shape Generator", () => {
       // Note: rdf:type is filtered out intentionally
       expect(propUris.length).toBeGreaterThan(0);
     });
+
+    it("deduplicates properties with same IRI across multiple instances", () => {
+      const localStore = new Store();
+      const classIri = "http://example.org/Class";
+      const propIri = "http://example.org/p";
+      localStore.addQuad(
+        df.namedNode("http://example.org/s1"),
+        df.namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        df.namedNode(classIri),
+      );
+      localStore.addQuad(
+        df.namedNode("http://example.org/s1"),
+        df.namedNode(propIri),
+        df.literal("a"),
+      );
+      localStore.addQuad(
+        df.namedNode("http://example.org/s2"),
+        df.namedNode("http://www.w3.org/1999/02/22-rdf-syntax-ns#type"),
+        df.namedNode(classIri),
+      );
+      localStore.addQuad(
+        df.namedNode("http://example.org/s2"),
+        df.namedNode(propIri),
+        df.literal("b"),
+      );
+
+      const properties = extractPropertiesForClass(
+        localStore,
+        df.namedNode(classIri),
+      );
+      const values = Array.from(properties).map((p) => p.value);
+      expect(values).toEqual([propIri]);
+    });
   });
 
   describe("analyzePropertyNodeKind", () => {
@@ -321,6 +354,76 @@ describe("SHACL Shape Generator", () => {
       );
 
       expect(hasBlankNode).toBe(false);
+    });
+
+    it("compact mode keeps class-specific maxCount constraints correct", async () => {
+      const result = generateShaclShapes(store, {
+        compactMode: true,
+        includeCardinality: true,
+        includeEnumeration: false,
+      });
+      const quads = result.quads;
+      const rdfType = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+      const shNodeShape = "http://www.w3.org/ns/shacl#NodeShape";
+      const shTargetClass = "http://www.w3.org/ns/shacl#targetClass";
+      const shNode = "http://www.w3.org/ns/shacl#node";
+      const shPath = "http://www.w3.org/ns/shacl#path";
+      const shMaxCount = "http://www.w3.org/ns/shacl#maxCount";
+      const personClass = "http://xmlns.com/foaf/0.1/Person";
+      const orgClass = "http://xmlns.com/foaf/0.1/Organization";
+      const namePath = "http://xmlns.com/foaf/0.1/name";
+
+      const nodeShapes = quads
+        .filter(
+          (q) => q.predicate.value === rdfType && q.object.value === shNodeShape,
+        )
+        .map((q) => q.subject);
+      const personShape = nodeShapes.find((shape) =>
+        quads.some(
+          (q) =>
+            q.subject.equals(shape) &&
+            q.predicate.value === shTargetClass &&
+            q.object.value === personClass,
+        ),
+      );
+      const orgShape = nodeShapes.find((shape) =>
+        quads.some(
+          (q) =>
+            q.subject.equals(shape) &&
+            q.predicate.value === shTargetClass &&
+            q.object.value === orgClass,
+        ),
+      );
+      expect(personShape).toBeDefined();
+      expect(orgShape).toBeDefined();
+
+      const getNameMaxCounts = (shape) => {
+        const propShapes = quads
+          .filter(
+            (q) => q.subject.equals(shape) && q.predicate.value === shNode,
+          )
+          .map((q) => q.object)
+          .filter((propShape) =>
+            quads.some(
+              (pq) =>
+                pq.subject.equals(propShape) &&
+                pq.predicate.value === shPath &&
+                pq.object.value === namePath,
+            ),
+          );
+        return propShapes
+          .map((propShape) =>
+            quads.find(
+              (pq) =>
+                pq.subject.equals(propShape) && pq.predicate.value === shMaxCount,
+            ),
+          )
+          .filter(Boolean)
+          .map((q) => Number(q.object.value));
+      };
+
+      expect(getNameMaxCounts(personShape)).toEqual([1]);
+      expect(getNameMaxCounts(orgShape)).toEqual([2]);
     });
   });
 

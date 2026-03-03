@@ -29,7 +29,7 @@ const NS = {
  * @returns {Term[]} Array of class IRIs
  */
 export function extractClasses(store) {
-  const classes = new Set();
+  const classesByValue = new Map();
   const typeQuads = store.match(
     null,
     df.namedNode(NS.rdf + "type"),
@@ -39,11 +39,11 @@ export function extractClasses(store) {
 
   for (const quad of typeQuads) {
     if (quad.object.termType === "NamedNode") {
-      classes.add(quad.object);
+      classesByValue.set(quad.object.value, quad.object);
     }
   }
 
-  return Array.from(classes);
+  return Array.from(classesByValue.values());
 }
 
 /**
@@ -53,7 +53,7 @@ export function extractClasses(store) {
  * @returns {Set<Term>} Set of property IRIs
  */
 export function extractPropertiesForClass(store, classNode) {
-  const properties = new Set();
+  const propertiesByValue = new Map();
   const instances = store.match(
     null,
     df.namedNode(NS.rdf + "type"),
@@ -66,12 +66,12 @@ export function extractPropertiesForClass(store, classNode) {
     for (const instanceQuad of instanceQuads) {
       // Exclude rdf:type
       if (instanceQuad.predicate.value !== NS.rdf + "type") {
-        properties.add(instanceQuad.predicate);
+        propertiesByValue.set(instanceQuad.predicate.value, instanceQuad.predicate);
       }
     }
   }
 
-  return properties;
+  return new Set(propertiesByValue.values());
 }
 
 /**
@@ -643,20 +643,33 @@ export function generateShaclShapesCompact(store, options = {}) {
   /**
    * Create a signature for a property shape to enable reuse across classes
    */
-  function createPropertySignature(property, nodeKind, datatype, objClass) {
-    return `${property.value}|${nodeKind || ""}|${datatype?.value || ""}|${objClass?.value || ""}`;
+  function createPropertySignature(property, propOptions) {
+    const languages = propOptions.languages
+      ? Array.from(propOptions.languages).sort().join(",")
+      : "";
+    const enumValues = propOptions.enumValues
+      ? propOptions.enumValues
+          .map((v) => `${v.termType}:${v.value}:${v.language || ""}:${v.datatype?.value || ""}`)
+          .sort()
+          .join(",")
+      : "";
+    return [
+      property.value,
+      propOptions.nodeKind || "",
+      propOptions.datatype?.value || "",
+      propOptions.objClass?.value || "",
+      propOptions.minCount ?? "",
+      propOptions.maxCount ?? "",
+      languages,
+      enumValues,
+    ].join("|");
   }
 
   /**
    * Get or create a named property shape with all constraints
    */
   function getOrCreatePropertyShape(property, propOptions) {
-    const sig = createPropertySignature(
-      property,
-      propOptions.nodeKind,
-      propOptions.datatype,
-      propOptions.objClass,
-    );
+    const sig = createPropertySignature(property, propOptions);
 
     if (propertyShapes.has(sig)) {
       return propertyShapes.get(sig);
@@ -672,8 +685,15 @@ export function generateShaclShapesCompact(store, options = {}) {
     const classSuffix = propOptions.objClass
       ? `_${localNameFromIRI(propOptions.objClass.value)}`
       : "";
-
-    const shapeNodeName = `${propLocalName}${nodeKindSuffix}${datatypeSuffix}${classSuffix}PropertyShape`;
+    // FNV-1a 32-bit hash: offset basis 2166136261 and prime 16777619.
+    let signatureHash = 2166136261;
+    for (let i = 0; i < sig.length; i++) {
+      signatureHash ^= sig.charCodeAt(i);
+      signatureHash = Math.imul(signatureHash, 16777619);
+    }
+    // Include signature length + hash to reduce practical collision chance.
+    const hashSuffix = `${sig.length}_${(signatureHash >>> 0).toString(36)}`;
+    const shapeNodeName = `${propLocalName}${nodeKindSuffix}${datatypeSuffix}${classSuffix}_${hashSuffix}PropertyShape`;
     const shapeNode = df.namedNode(`${propertyShapeNamespace}${shapeNodeName}`);
 
     const quads = [];
