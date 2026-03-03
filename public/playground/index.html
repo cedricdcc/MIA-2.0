@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHACL Shape Generator - Interactive Playground</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .quick-examples {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-example-btn {
+            padding: 8px 15px;
+            background: white;
+            border: 2px solid #667eea;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .quick-example-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            min-height: 600px;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .panel:last-child {
+            border-right: none;
+        }
+
+        .panel-header {
+            background: #343a40;
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .panel-header .badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+
+        .panel-content {
+            flex: 1;
+            overflow: auto;
+            background: #282c34;
+            position: relative;
+        }
+
+        .code-editor {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+            padding: 20px;
+            border: none;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #abb2bf;
+            background: #282c34;
+            resize: none;
+            tab-size: 4;
+        }
+
+        .code-editor:focus {
+            outline: none;
+        }
+
+        .json-output {
+            padding: 20px;
+            color: #abb2bf;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .status {
+            padding: 15px 30px;
+            background: #e9ecef;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9em;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #6c757d;
+        }
+
+        .status-indicator.active {
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.error {
+            background: #dc3545;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #abb2bf;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            padding: 15px;
+            margin: 20px;
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            padding: 15px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #6c757d;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #343a40;
+        }
+
+        /* Syntax highlighting for Turtle */
+        .turtle-keyword {
+            color: #c678dd;
+        }
+
+        .turtle-uri {
+            color: #98c379;
+        }
+
+        .turtle-literal {
+            color: #e5c07b;
+        }
+
+        @media (max-width: 1200px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+
+            .panel {
+                border-right: none;
+                border-bottom: 1px solid #dee2e6;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 SHACL Shape Generator</h1>
+            <p>Load RDF data from any URI, auto-generate SHACL shapes, and extract structured data</p>
+        </div>
+
+        <div class="controls">
+            <div class="input-group">
+                <input 
+                    type="url" 
+                    id="rdfUri" 
+                    placeholder="Enter RDF data URI (e.g., https://data.emobon.embrc.eu/metadata.ttl)"
+                    value="https://data.emobon.embrc.eu/metadata.ttl"
+                />
+                <button class="btn" id="loadBtn">Load RDF Data</button>
+            </div>
+            
+            <div class="quick-examples">
+                <span style="color: #6c757d; font-size: 0.9em; margin-right: 10px;">Quick Examples:</span>
+                <button class="quick-example-btn" data-url="https://data.emobon.embrc.eu/metadata.ttl">
+                    EMO BON Data
+                </button>
+                <button class="quick-example-btn" data-url="../rdf-data/marineinfo-collection.ttl">
+                    Local Marine Info
+                </button>
+                <button class="quick-example-btn" data-url="../rdf-data/example.ttl">
+                    Simple Example
+                </button>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-label">Triples Loaded</div>
+                <div class="stat-value" id="triplesCount">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Classes Found</div>
+                <div class="stat-value" id="classesCount">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Shapes Generated</div>
+                <div class="stat-value" id="shapesCount">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Objects Extracted</div>
+                <div class="stat-value" id="objectsCount">0</div>
+            </div>
+        </div>
+
+        <div class="workspace">
+            <div class="panel">
+                <div class="panel-header">
+                    <span>📄 RDF Triples (Raw Data)</span>
+                    <span class="badge" id="triplesBadge">Not loaded</span>
+                </div>
+                <div class="panel-content">
+                    <div class="loading" id="triplesLoading">
+                        <div class="spinner"></div>
+                        <div>Loading triples...</div>
+                    </div>
+                    <div class="error-message" id="triplesError"></div>
+                    <textarea 
+                        class="code-editor" 
+                        id="triplesEditor" 
+                        placeholder="RDF triples will appear here once loaded..."
+                        readonly
+                    ></textarea>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>📐 SHACL Shapes (Auto-Generated)</span>
+                    <span class="badge" id="shaclBadge">Not generated</span>
+                </div>
+                <div class="panel-content">
+                    <div class="loading" id="shaclLoading">
+                        <div class="spinner"></div>
+                        <div>Generating SHACL shapes...</div>
+                    </div>
+                    <div class="error-message" id="shaclError"></div>
+                    <textarea 
+                        class="code-editor" 
+                        id="shaclEditor" 
+                        placeholder="Edit SHACL shapes here and click 'Extract Data' to see results..."
+                    ></textarea>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>📊 Extracted Objects (JSON)</span>
+                    <span class="badge" id="extractedBadge">No extraction</span>
+                </div>
+                <div class="panel-content">
+                    <div class="loading" id="extractedLoading">
+                        <div class="spinner"></div>
+                        <div>Extracting data with SHACL...</div>
+                    </div>
+                    <div class="error-message" id="extractedError"></div>
+                    <div class="json-output" id="extractedOutput">
+                        Click "Extract Data" below to run rdf-lens extraction with your SHACL shapes
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span>🔍 Extraction Details</span>
+                    <button class="btn btn-secondary" id="extractBtn" style="padding: 8px 20px; font-size: 0.9em;" disabled>
+                        Extract Data
+                    </button>
+                </div>
+                <div class="panel-content">
+                    <div class="json-output" id="detailsOutput">
+                        Schema analysis and extraction diagnostics will appear here
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status">
+            <div class="status-item">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Ready to load RDF data</span>
+            </div>
+            <div class="status-item">
+                <span id="statusTime"></span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Parser } from 'https://esm.sh/n3@1.17.3';
+        import { toRdfQuads, extractWithShapes } from '../../src/utils/rdf-lens-extractor.js';
+        import { generateShaclShapes } from '../../src/utils/shacl-generator.js';
+
+        // Global state
+        let currentQuads = [];
+        let currentRdfText = '';
+        let currentShaclQuads = [];
+
+        // UI Elements
+        const rdfUriInput = document.getElementById('rdfUri');
+        const loadBtn = document.getElementById('loadBtn');
+        const extractBtn = document.getElementById('extractBtn');
+        const triplesEditor = document.getElementById('triplesEditor');
+        const shaclEditor = document.getElementById('shaclEditor');
+        const extractedOutput = document.getElementById('extractedOutput');
+        const detailsOutput = document.getElementById('detailsOutput');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const statusTime = document.getElementById('statusTime');
+
+        // Quick example buttons
+        document.querySelectorAll('.quick-example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                rdfUriInput.value = btn.dataset.url;
+                loadBtn.click();
+            });
+        });
+
+        // Utility functions
+        function setStatus(text, type = 'info') {
+            statusText.textContent = text;
+            statusIndicator.className = 'status-indicator';
+            if (type === 'active') statusIndicator.classList.add('active');
+            if (type === 'error') statusIndicator.classList.add('error');
+            
+            const now = new Date();
+            statusTime.textContent = now.toLocaleTimeString();
+        }
+
+        function showLoading(elementId, show = true) {
+            const loadingEl = document.getElementById(elementId);
+            if (show) {
+                loadingEl.classList.add('show');
+            } else {
+                loadingEl.classList.remove('show');
+            }
+        }
+
+        function showError(elementId, message) {
+            const errorEl = document.getElementById(elementId);
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+            setTimeout(() => errorEl.classList.remove('show'), 5000);
+        }
+
+        function updateStats(triples = 0, classes = 0, shapes = 0, objects = 0) {
+            document.getElementById('stats').style.display = 'flex';
+            if (triples !== null) document.getElementById('triplesCount').textContent = triples;
+            if (classes !== null) document.getElementById('classesCount').textContent = classes;
+            if (shapes !== null) document.getElementById('shapesCount').textContent = shapes;
+            if (objects !== null) document.getElementById('objectsCount').textContent = objects;
+        }
+
+        // Parse RDF text into quads
+        async function parseRdf(text, format = 'text/turtle') {
+            return new Promise((resolve, reject) => {
+                const parser = new Parser({ format });
+                const quads = [];
+
+                parser.parse(text, (error, quad) => {
+                    if (error) {
+                        reject(error);
+                    } else if (quad) {
+                        quads.push(quad);
+                    } else {
+                        resolve(quads);
+                    }
+                });
+            });
+        }
+
+        // Serialize quads for rdf-lens
+        function serializeQuads(quads) {
+            return quads.map((q) => ({
+                subject: { value: q.subject.value, termType: q.subject.termType },
+                predicate: { value: q.predicate.value, termType: q.predicate.termType },
+                object: {
+                    value: q.object.value,
+                    termType: q.object.termType,
+                    datatype: q.object.datatype ? {
+                        value: q.object.datatype.value,
+                        termType: q.object.datatype.termType,
+                    } : undefined,
+                    language: q.object.language || undefined,
+                },
+                graph: { value: q.graph.value, termType: q.graph.termType },
+            }));
+        }
+
+        // Analyze schema
+        function analyzeSchema(quads) {
+            const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+            const classes = new Set();
+            const properties = new Set();
+            
+            for (const quad of quads) {
+                if (quad.predicate.value === RDF_TYPE) {
+                    classes.add(quad.object.value);
+                }
+                properties.add(quad.predicate.value);
+            }
+
+            return { classes: Array.from(classes), properties: Array.from(properties) };
+        }
+
+        // Load RDF data
+        loadBtn.addEventListener('click', async () => {
+            const uri = rdfUriInput.value.trim();
+            if (!uri) {
+                showError('triplesError', 'Please enter a valid URI');
+                return;
+            }
+
+            loadBtn.disabled = true;
+            extractBtn.disabled = true;
+            showLoading('triplesLoading', true);
+            showLoading('shaclLoading', true);
+            setStatus('Fetching RDF data...', 'active');
+
+            try {
+                // Fetch RDF data
+                const response = await fetch(uri, {
+                    headers: {
+                        'Accept': 'text/turtle, application/rdf+xml, application/ld+json, application/n-triples, */*;q=0.5'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const contentType = response.headers.get('content-type') || '';
+                let format = 'text/turtle';
+                if (contentType.includes('application/ld+json')) format = 'application/ld+json';
+                else if (contentType.includes('application/rdf+xml')) format = 'application/rdf+xml';
+                else if (contentType.includes('application/n-triples')) format = 'application/n-triples';
+
+                currentRdfText = await response.text();
+                setStatus('Parsing RDF data...', 'active');
+
+                // Parse RDF
+                currentQuads = await parseRdf(currentRdfText, format);
+                triplesEditor.value = currentRdfText;
+                
+                const schema = analyzeSchema(currentQuads);
+                document.getElementById('triplesBadge').textContent = `${currentQuads.length} triples`;
+                
+                setStatus('Generating SHACL shapes...', 'active');
+
+                // Generate SHACL shapes
+                const shaclText = generateShaclShapes(currentQuads, {
+                    shapePrefix: 'generated',
+                    shapeNamespace: 'http://generated.example.org/shapes#',
+                    includeCardinality: true,
+                    minInstancesPerClass: 1,
+                });
+
+                shaclEditor.value = shaclText;
+                document.getElementById('shaclBadge').textContent = `${schema.classes.length} shapes`;
+                
+                updateStats(currentQuads.length, schema.classes.length, schema.classes.length, 0);
+
+                // Show details
+                detailsOutput.textContent = JSON.stringify({
+                    message: 'RDF data loaded successfully',
+                    format: format,
+                    triples: currentQuads.length,
+                    classes: schema.classes,
+                    propertiesCount: schema.properties.length,
+                    timestamp: new Date().toISOString()
+                }, null, 2);
+
+                setStatus('Ready to extract data', 'active');
+                extractBtn.disabled = false;
+
+            } catch (error) {
+                console.error('Error loading RDF:', error);
+                showError('triplesError', `Error: ${error.message}`);
+                setStatus('Error loading RDF data', 'error');
+            } finally {
+                showLoading('triplesLoading', false);
+                showLoading('shaclLoading', false);
+                loadBtn.disabled = false;
+            }
+        });
+
+        // Extract data with SHACL
+        extractBtn.addEventListener('click', async () => {
+            if (!currentQuads.length) {
+                showError('extractedError', 'Please load RDF data first');
+                return;
+            }
+
+            const shaclText = shaclEditor.value.trim();
+            if (!shaclText) {
+                showError('extractedError', 'Please provide SHACL shapes');
+                return;
+            }
+
+            extractBtn.disabled = true;
+            showLoading('extractedLoading', true);
+            setStatus('Extracting data with SHACL shapes...', 'active');
+
+            try {
+                // Parse SHACL shapes
+                currentShaclQuads = await parseRdf(shaclText, 'text/turtle');
+                
+                // Convert to RDFJS format
+                const dataRdfQuads = toRdfQuads(serializeQuads(currentQuads));
+                const shapeRdfQuads = toRdfQuads(serializeQuads(currentShaclQuads));
+
+                setStatus('Running rdf-lens extraction...', 'active');
+
+                // Extract with shapes
+                const result = extractWithShapes(dataRdfQuads, shapeRdfQuads);
+                
+                // Display results
+                extractedOutput.textContent = JSON.stringify(result, null, 2);
+                
+                // Count extracted objects
+                let objectCount = 0;
+                for (const items of Object.values(result)) {
+                    if (Array.isArray(items)) {
+                        objectCount += items.length;
+                    }
+                }
+
+                document.getElementById('extractedBadge').textContent = `${objectCount} objects`;
+                updateStats(null, null, null, objectCount);
+
+                // Update details
+                detailsOutput.textContent = JSON.stringify({
+                    message: 'Data extraction completed',
+                    shaclQuads: currentShaclQuads.length,
+                    extractedClasses: Object.keys(result).length,
+                    totalObjects: objectCount,
+                    breakdown: Object.fromEntries(
+                        Object.entries(result).map(([key, val]) => [key, Array.isArray(val) ? val.length : 1])
+                    ),
+                    timestamp: new Date().toISOString()
+                }, null, 2);
+
+                setStatus('Extraction completed successfully', 'active');
+
+            } catch (error) {
+                console.error('Error extracting data:', error);
+                showError('extractedError', `Error: ${error.message}`);
+                detailsOutput.textContent = JSON.stringify({
+                    error: error.message,
+                    stack: error.stack,
+                    timestamp: new Date().toISOString()
+                }, null, 2);
+                setStatus('Error during extraction', 'error');
+            } finally {
+                showLoading('extractedLoading', false);
+                extractBtn.disabled = false;
+            }
+        });
+
+        // Auto-extract on SHACL change (with debounce)
+        let extractTimeout;
+        shaclEditor.addEventListener('input', () => {
+            clearTimeout(extractTimeout);
+            extractTimeout = setTimeout(() => {
+                if (currentQuads.length && extractBtn.disabled === false) {
+                    extractBtn.click();
+                }
+            }, 2000); // Wait 2 seconds after user stops typing
+        });
+
+        // Initialize
+        setStatus('Ready to load RDF data', 'info');
+    </script>
+</body>
+</html>
