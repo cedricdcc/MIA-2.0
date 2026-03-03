@@ -39,7 +39,7 @@ class RdfDisplayWrapper extends HTMLElement {
   }
 
   _handleLoaded(event) {
-    if (event.target === this._display) return;
+    if (event.target === this._display || event.detail?.__fromWrapper) return;
     const lensObject = event.detail?.lensObject ?? null;
     const lensNamespace =
       this.getAttribute("lens-namespace") || "https://example.org/lens/";
@@ -52,6 +52,7 @@ class RdfDisplayWrapper extends HTMLElement {
           allTriples:
             triplesFromLens.length ? triplesFromLens : event.detail?.allTriples || event.detail?.triples || [],
           lensObject,
+          __fromWrapper: true,
         },
         bubbles: true,
         composed: true,
@@ -60,10 +61,10 @@ class RdfDisplayWrapper extends HTMLElement {
   }
 
   _handleError(event) {
-    if (event.target === this._display) return;
+    if (event.target === this._display || event.detail?.__fromWrapper) return;
     this._display.dispatchEvent(
       new CustomEvent("rdf-error", {
-        detail: event.detail || { message: "Unknown RDF display error" },
+        detail: { ...(event.detail || { message: "Unknown RDF display error" }), __fromWrapper: true },
         bubbles: true,
         composed: true,
       }),
@@ -79,7 +80,7 @@ function _lensObjectToTriples(lensObject, namespace = "https://example.org/lens/
     groupIndex += 1;
     if (!Array.isArray(rows)) continue;
     rows.forEach((row, rowIndex) => {
-      if (!row || typeof row !== "object") continue;
+      if (!row || typeof row !== "object") return;
       const subject =
         row.id || row.uri || `${namespace}row/${groupIndex}/${rowIndex + 1}`;
       for (const [key, rawValue] of Object.entries(row)) {

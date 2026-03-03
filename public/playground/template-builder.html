@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Lens Block Template Builder</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f7fafc; color: #1f2937; }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f3f6fb; color: #1f2937; }
+    .wrap { width: 100%; margin: 0; padding: 16px 20px 24px; box-sizing: border-box; }
     h1 { margin: 0 0 10px; font-size: 1.6rem; }
     .muted { color: #4b5563; font-size: 0.95rem; }
-    .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; margin-top: 16px; }
-    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+    .panel { background: #fff; border: 1px solid #dbe4f0; border-radius: 12px; padding: 14px; box-shadow: 0 1px 2px rgba(17,24,39,.04); }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
     input, select, textarea, button { font: inherit; }
     input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; }
@@ -27,6 +27,10 @@
     code { background: #f3f4f6; border-radius: 5px; padding: 2px 5px; }
     pre { background: #111827; color: #e5e7eb; border-radius: 10px; padding: 10px; overflow: auto; font-size: 0.86rem; }
     textarea { width: 100%; min-height: 120px; }
+    .live-html { border: 1px dashed #c7d2fe; border-radius: 10px; background: #ffffff; padding: 12px; min-height: 90px; }
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -98,13 +102,15 @@
           <template id="lens-template"></template>
           <rdf-display-wrapper id="preview" template-id="lens-template"></rdf-display-wrapper>
         </div>
+        <h3>Raw live HTML preview</h3>
+        <div id="rawLivePreview" class="live-html"></div>
       </div>
     </div>
   </div>
 
   <script type="module">
-    import { Parser } from 'https://esm.sh/n3@1.17.3';
     import "../../src/components/rdf-display-wrapper.js";
+    import { parseRdf } from "../../src/utils/rdf-parser.js";
     import { buildShaclFromDescriptors } from "../../src/utils/rdf-lens-shacl.js";
 
     console.log("Template builder script loaded");
@@ -132,6 +138,7 @@
     const templateHtml = document.getElementById("templateHtml");
     const lensTemplate = document.getElementById("lens-template");
     const preview = document.getElementById("preview");
+    const rawLivePreview = document.getElementById("rawLivePreview");
 
     console.log("Elements found:", {
       rdfUri: !!rdfUri,
@@ -266,20 +273,12 @@
         const text = await response.text();
         console.log("Fetched text length:", text.length);
         
-        // Parse RDF using N3
-        quads = await new Promise((resolve, reject) => {
-          const parser = new Parser({ format: 'text/turtle' });
-          const quadArray = [];
-          parser.parse(text, (error, quad) => {
-            if (error) {
-              reject(error);
-            } else if (quad) {
-              quadArray.push(quad);
-            } else {
-              resolve(quadArray);
-            }
-          });
-        });
+        const contentType = response.headers.get("content-type") || "";
+        let format = "text/turtle";
+        if (contentType.includes("application/ld+json")) format = "application/ld+json";
+        else if (contentType.includes("application/rdf+xml")) format = "application/rdf+xml";
+        else if (contentType.includes("application/n-triples")) format = "application/n-triples";
+        quads = await parseRdf(text, format, uri);
         
         classSubjects = new Map();
         classProperties = new Map();
@@ -329,6 +328,10 @@
       const row = {};
       for (const d of descriptors) row[d.name] = d.example || "";
       lensTemplate.innerHTML = templateHtml.value;
+      rawLivePreview.innerHTML = templateHtml.value.replace(/\{lens:([^}]+)\}/g, (_, key) => {
+        const v = row[key];
+        return v === undefined || v === null ? `[missing:${key}]` : String(v);
+      });
       preview.dispatchEvent(
         new CustomEvent("rdf-loaded", {
           detail: {
@@ -371,9 +374,7 @@
     // Update preview when template HTML changes
     templateHtml.addEventListener("input", () => {
       const { descriptors } = buildDescriptors();
-      if (descriptors.length > 0) {
-        refreshPreview(descriptors);
-      }
+      refreshPreview(descriptors);
     });
 
     addBlockRow({ name: "title", path: "dct:title", datatype: "xsd:string", example: "Sample title" });
@@ -383,7 +384,7 @@
       datatype: "geosparql:wktLiteral",
       example: "POLYGON((...))",
     });
-    generateBtn.click();
+    refreshPreview(buildDescriptors().descriptors);
   </script>
 </body>
 </html>
