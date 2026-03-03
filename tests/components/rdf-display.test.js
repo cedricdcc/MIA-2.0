@@ -301,6 +301,45 @@ describe("<rdf-display>", () => {
     expect(host.textContent).toContain("non-existent-template");
   });
 
+  it("shows feedback when lens placeholders are missing in lens rows", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "lens-missing-tmpl";
+    tmpl.innerHTML = `<div>{lens:title} / {lens:missingField}</div>`;
+    document.body.appendChild(tmpl);
+    el.setAttribute("template-id", "lens-missing-tmpl");
+    el.dispatchEvent(
+      new CustomEvent("rdf-loaded", {
+        detail: {
+          triples: makeTriples(["http://example.org/p", "v"]),
+          lensObject: { Example: [{ title: "Hello" }] },
+        },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await updateComplete(el);
+
+    const warning = el.shadowRoot.querySelector(".rdf-template-warning");
+    expect(warning).not.toBeNull();
+    expect(warning.textContent).toContain("{lens:missingField}");
+    expect(el.shadowRoot.textContent).toContain("[missing:missingField]");
+    tmpl.remove();
+  });
+
+  it("shows feedback when template expects lens placeholders but lens rows are absent", async () => {
+    const tmpl = document.createElement("template");
+    tmpl.id = "lens-empty-tmpl";
+    tmpl.innerHTML = `<div>{lens:title}</div>`;
+    document.body.appendChild(tmpl);
+    el.setAttribute("template-id", "lens-empty-tmpl");
+    fireRdfLoaded(el, makeTriples(["http://example.org/p", "v"]));
+    await updateComplete(el);
+
+    const host = el.shadowRoot.querySelector(".rdf-template-host");
+    expect(host.textContent).toContain("no lens object rows are available");
+    tmpl.remove();
+  });
+
   // ---- Error handling ------------------------------------------------------
 
   it("shows error on rdf-error event", async () => {

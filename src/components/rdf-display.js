@@ -156,6 +156,15 @@ export class RdfDisplay extends LitElement {
     .rdf-error {
       color: #c00;
     }
+    .rdf-template-warning {
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      background: #fffbeb;
+      border-radius: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+    }
   `;
 
   // ---------------------------------------------------------------------------
@@ -369,6 +378,8 @@ export class RdfDisplay extends LitElement {
     const lensRows = this.lensObject ? _collectLensRows(this.lensObject) : [];
     const wantsLensPlaceholders = tmpl.innerHTML.includes("{lens:");
     if (wantsLensPlaceholders && lensRows.length) {
+      const requiredLensKeys = _extractLensPlaceholderKeys(tmpl.innerHTML);
+      const missingAcrossRows = new Set();
       console.info(`${DISPLAY_LOG} render:template-mode`, {
         mode: "lens",
         templateId: this.templateId,
@@ -376,9 +387,28 @@ export class RdfDisplay extends LitElement {
       });
       for (const row of lensRows) {
         const clone = tmpl.content.cloneNode(true);
-        _fillLensPlaceholders(clone, row);
+        const missingKeys = _fillLensPlaceholders(clone, row, requiredLensKeys);
+        for (const key of missingKeys) missingAcrossRows.add(key);
         host.appendChild(clone);
       }
+      if (missingAcrossRows.size) {
+        const warning = document.createElement("div");
+        warning.className = "rdf-template-warning";
+        warning.textContent = `Template fields missing in lens data: ${[
+          ...missingAcrossRows,
+        ]
+          .map((k) => `{lens:${k}}`)
+          .join(", ")}`;
+        host.prepend(warning);
+      }
+      return;
+    }
+    if (wantsLensPlaceholders && !lensRows.length) {
+      const warning = document.createElement("div");
+      warning.className = "rdf-template-warning";
+      warning.textContent =
+        "Lens template placeholders were found, but no lens object rows are available.";
+      host.appendChild(warning);
       return;
     }
 
@@ -772,16 +802,33 @@ function _collectLensRows(lensObject) {
   return collected;
 }
 
-function _fillLensPlaceholders(fragment, lensRow) {
+function _fillLensPlaceholders(fragment, lensRow, requiredKeys = []) {
   const replacements = {};
-  for (const [key, value] of Object.entries(lensRow)) {
+  const missingKeys = [];
+  const keys =
+    requiredKeys.length > 0 ? requiredKeys : Object.keys(lensRow || {});
+  for (const key of keys) {
+    const value = lensRow?.[key];
+    const isMissing = value === undefined || value === null;
+    if (isMissing) {
+      missingKeys.push(key);
+    }
     const strValue = Array.isArray(value)
       ? value.map((v) => (v && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""))).join(", ")
       : (value && typeof value === "object" ? JSON.stringify(value) : String(value ?? ""));
-    replacements[`{lens:${key}}`] = strValue;
+    replacements[`{lens:${key}}`] = isMissing ? `[missing:${key}]` : strValue;
   }
-  if (Object.keys(replacements).length === 0) return;
+  if (Object.keys(replacements).length === 0) return [];
   _fillPlaceholders(fragment, replacements);
+  return missingKeys;
+}
+
+function _extractLensPlaceholderKeys(templateHtml = "") {
+  const keys = new Set();
+  const re = /\{lens:([^}]+)\}/g;
+  let m;
+  while ((m = re.exec(templateHtml)) !== null) keys.add(m[1].trim());
+  return [...keys].filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------

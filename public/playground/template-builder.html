@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lens Block Template Builder</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f7fafc; color: #1f2937; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 0 0 10px; font-size: 1.6rem; }
+    .muted { color: #4b5563; font-size: 0.95rem; }
+    .grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; margin-top: 16px; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+    input, select, textarea, button { font: inherit; }
+    input, select, textarea { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px; }
+    button { border: 1px solid #c7d2fe; background: #eef2ff; color: #1e3a8a; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
+    button.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+    button.danger { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { border: 1px solid #dbeafe; background: #eff6ff; border-radius: 999px; padding: 4px 10px; cursor: pointer; font-size: 0.85rem; }
+    .error { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; padding: 8px; border-radius: 8px; margin-top: 8px; }
+    .ok { color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 8px; border-radius: 8px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #eef2f7; padding: 8px; text-align: left; vertical-align: top; }
+    th { font-size: 0.85rem; color: #374151; }
+    code { background: #f3f4f6; border-radius: 5px; padding: 2px 5px; }
+    pre { background: #111827; color: #e5e7eb; border-radius: 10px; padding: 10px; overflow: auto; font-size: 0.86rem; }
+    textarea { width: 100%; min-height: 120px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Lens block template builder</h1>
+    <div class="muted">
+      Build a user-friendly block structure from RDF, generate SHACL (including property paths), and preview template rendering from lens-object values.
+    </div>
+    <div class="row">
+      <a href="/playground/">← Back to extraction playground</a>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <div class="row">
+          <input id="rdfUri" style="min-width:420px;flex:1;" placeholder="RDF URI (e.g. https://example.org/data.ttl)" />
+          <button id="loadBtn" class="primary">Load RDF</button>
+        </div>
+        <div class="row">
+          <label>Target class</label>
+          <select id="classSelect"></select>
+        </div>
+        <div class="muted">Suggested properties for selected class (click to add a block):</div>
+        <div class="chips" id="propertyChips"></div>
+        <div id="loadFeedback"></div>
+
+        <hr />
+
+        <div class="row">
+          <button id="addBlockBtn">Add block</button>
+          <button id="generateBtn" class="primary">Generate SHACL + preview</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Path (space-separated, supports prefixes)</th>
+              <th>Datatype (optional)</th>
+              <th>List</th>
+              <th>Example</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="blocksBody"></tbody>
+        </table>
+        <div class="muted">
+          Prefixes supported in path/datatype: <code>dct:</code> <code>dcat:</code> <code>xsd:</code> <code>geosparql:</code>. Example path:
+          <code>dct:spatial dcat:bbox</code>
+        </div>
+        <div class="muted">Use dots in block names for nested fields (e.g. <code>spatial.bbox</code> → <code>{lens:spatial.bbox}</code>).</div>
+        <div id="builderFeedback"></div>
+      </div>
+
+      <div class="panel">
+        <h3>Generated SHACL</h3>
+        <pre id="shaclOut"></pre>
+        <h3>Object structure</h3>
+        <pre id="structureOut"></pre>
+        <h3>Template editor (lens object based)</h3>
+        <textarea id="templateHtml"><article><h2>{lens:title}</h2><p>{lens:spatial.bbox}</p></article></textarea>
+        <template id="lens-template"></template>
+        <rdf-display-wrapper id="preview" template-id="lens-template"></rdf-display-wrapper>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import "../../src/components/rdf-display-wrapper.js";
+    import { buildShaclFromDescriptors } from "../../src/utils/rdf-lens-shacl.js";
+    import { parseRdf } from "../../src/utils/rdf-parser.js";
+
+    const PREFIXES = {
+      generated: "http://generated.example.org/shapes#",
+      sh: "http://www.w3.org/ns/shacl#",
+      xsd: "http://www.w3.org/2001/XMLSchema#",
+      dct: "http://purl.org/dc/terms/",
+      dcat: "http://www.w3.org/ns/dcat#",
+      geosparql: "http://www.opengis.net/ont/geosparql#",
+    };
+
+    const rdfUri = document.getElementById("rdfUri");
+    const loadBtn = document.getElementById("loadBtn");
+    const classSelect = document.getElementById("classSelect");
+    const propertyChips = document.getElementById("propertyChips");
+    const blocksBody = document.getElementById("blocksBody");
+    const addBlockBtn = document.getElementById("addBlockBtn");
+    const generateBtn = document.getElementById("generateBtn");
+    const loadFeedback = document.getElementById("loadFeedback");
+    const builderFeedback = document.getElementById("builderFeedback");
+    const shaclOut = document.getElementById("shaclOut");
+    const structureOut = document.getElementById("structureOut");
+    const templateHtml = document.getElementById("templateHtml");
+    const lensTemplate = document.getElementById("lens-template");
+    const preview = document.getElementById("preview");
+
+    let quads = [];
+    let classSubjects = new Map();
+    let classProperties = new Map();
+
+    function showFeedback(el, msg, ok = false) {
+      el.innerHTML = msg ? `<div class="${ok ? "ok" : "error"}">${msg}</div>` : "";
+    }
+
+    const termValue = (t) => (t && typeof t === "object" ? t.value : t);
+
+    function getLocal(uri = "") {
+      const idx = Math.max(uri.lastIndexOf("#"), uri.lastIndexOf("/"));
+      return idx >= 0 ? uri.slice(idx + 1) : uri;
+    }
+
+    function expandTerm(term) {
+      if (/^https?:\/\//.test(term)) return term;
+      const [prefix, local] = term.split(":");
+      if (local && PREFIXES[prefix]) return `${PREFIXES[prefix]}${local}`;
+      return null;
+    }
+
+    function addBlockRow(initial = {}) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input data-role="name" value="${initial.name || ""}" placeholder="title" /></td>
+        <td><input data-role="path" value="${initial.path || ""}" placeholder="dct:title OR dct:spatial dcat:bbox" style="min-width:270px;" /></td>
+        <td><input data-role="datatype" value="${initial.datatype || ""}" placeholder="xsd:string" /></td>
+        <td><input data-role="isList" type="checkbox" ${initial.isList ? "checked" : ""} /></td>
+        <td><input data-role="example" value="${initial.example || ""}" placeholder="example value" /></td>
+        <td><button class="danger" data-role="remove">Remove</button></td>
+      `;
+      tr.querySelector('[data-role="remove"]').addEventListener("click", () => tr.remove());
+      blocksBody.appendChild(tr);
+    }
+
+    function buildDescriptors() {
+      const descriptors = [];
+      const errors = [];
+      [...blocksBody.querySelectorAll("tr")].forEach((tr, index) => {
+        const name = tr.querySelector('[data-role="name"]').value.trim();
+        const pathRaw = tr.querySelector('[data-role="path"]').value.trim();
+        const datatypeRaw = tr.querySelector('[data-role="datatype"]').value.trim();
+        const isList = tr.querySelector('[data-role="isList"]').checked;
+        const example = tr.querySelector('[data-role="example"]').value.trim();
+        if (!name) errors.push(`Row ${index + 1}: name is required.`);
+        if (!pathRaw) errors.push(`Row ${index + 1}: path is required.`);
+        const steps = pathRaw.split(/\s+/).filter(Boolean);
+        const expandedPath = steps.map(expandTerm);
+        if (expandedPath.some((v) => !v)) {
+          errors.push(`Row ${index + 1}: path contains unknown term(s). Use full URI or supported prefixes.`);
+        }
+        const datatypeExpanded = datatypeRaw ? (datatypeRaw.startsWith("xsd:") ? datatypeRaw : expandTerm(datatypeRaw)) : "";
+        if (datatypeRaw && !datatypeExpanded) {
+          errors.push(`Row ${index + 1}: datatype must be full URI or known prefix form.`);
+        }
+        descriptors.push({
+          name,
+          path: expandedPath.filter(Boolean),
+          datatype: datatypeExpanded || "",
+          isList,
+          example,
+        });
+      });
+      return { descriptors, errors };
+    }
+
+    function renderClassChoices() {
+      classSelect.innerHTML = "";
+      for (const [cls, subjects] of classSubjects.entries()) {
+        const opt = document.createElement("option");
+        opt.value = cls;
+        opt.textContent = `${getLocal(cls)} (${subjects.size} subjects)`;
+        classSelect.appendChild(opt);
+      }
+      renderPropertyChips();
+    }
+
+    function renderPropertyChips() {
+      propertyChips.innerHTML = "";
+      const cls = classSelect.value;
+      const props = classProperties.get(cls) || [];
+      for (const prop of props) {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.type = "button";
+        chip.textContent = getLocal(prop);
+        chip.title = prop;
+        chip.addEventListener("click", () => {
+          addBlockRow({
+            name: getLocal(prop),
+            path: prop,
+            datatype: "xsd:string",
+            example: `Example ${getLocal(prop)}`,
+          });
+        });
+        propertyChips.appendChild(chip);
+      }
+    }
+
+    loadBtn.addEventListener("click", async () => {
+      const uri = rdfUri.value.trim();
+      if (!uri) {
+        showFeedback(loadFeedback, "Please provide an RDF URI.");
+        return;
+      }
+      try {
+        loadBtn.disabled = true;
+        showFeedback(loadFeedback, "Loading RDF…", true);
+        const response = await fetch(uri);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const text = await response.text();
+        quads = await parseRdf(text, "text/turtle", uri);
+        classSubjects = new Map();
+        classProperties = new Map();
+        const RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
+        const subjectTypes = new Map();
+
+        for (const q of quads) {
+          const s = termValue(q.subject);
+          if (!subjectTypes.has(s)) subjectTypes.set(s, new Set());
+          if (termValue(q.predicate) === RDF_TYPE) subjectTypes.get(s).add(termValue(q.object));
+        }
+        for (const [s, types] of subjectTypes.entries()) {
+          for (const t of types) {
+            if (!classSubjects.has(t)) classSubjects.set(t, new Set());
+            classSubjects.get(t).add(s);
+          }
+        }
+        for (const [cls, subjects] of classSubjects.entries()) {
+          const props = new Set();
+          for (const q of quads) {
+            if (subjects.has(termValue(q.subject)) && termValue(q.predicate) !== RDF_TYPE) props.add(termValue(q.predicate));
+          }
+          classProperties.set(cls, [...props].sort());
+        }
+        if (!classSubjects.size) throw new Error("No typed subjects found (rdf:type).");
+        renderClassChoices();
+        showFeedback(loadFeedback, `Loaded ${quads.length} triples. Pick a class and start adding blocks.`, true);
+      } catch (error) {
+        const parseLike = /parse|syntax|token|unexpected/i.test(String(error?.message || ""));
+        showFeedback(
+          loadFeedback,
+          parseLike
+            ? `RDF parsing failed: ${error.message}`
+            : `Failed to load RDF: ${error.message}`,
+        );
+      } finally {
+        loadBtn.disabled = false;
+      }
+    });
+
+    classSelect.addEventListener("change", renderPropertyChips);
+    addBlockBtn.addEventListener("click", () => addBlockRow());
+
+    function refreshPreview(descriptors) {
+      const row = {};
+      for (const d of descriptors) row[d.name] = d.example || "";
+      lensTemplate.innerHTML = templateHtml.value;
+      preview.dispatchEvent(
+        new CustomEvent("rdf-loaded", {
+          detail: {
+            triples: [],
+            lensObject: { Generated: [row] },
+          },
+          bubbles: true,
+          composed: true,
+        }),
+      );
+    }
+
+    generateBtn.addEventListener("click", () => {
+      const targetClass = classSelect.value;
+      if (!targetClass) {
+        showFeedback(builderFeedback, "Load RDF and select a class first.");
+        return;
+      }
+      const { descriptors, errors } = buildDescriptors();
+      if (errors.length) {
+        showFeedback(builderFeedback, errors.join("<br>"));
+        return;
+      }
+      const shapeName = `${getLocal(targetClass) || "Generated"}Shape`;
+      const ttl = buildShaclFromDescriptors(descriptors, {
+        shapeIri: `${PREFIXES.generated}${shapeName}`,
+        targetClassIri: targetClass,
+        prefixes: PREFIXES,
+      });
+      shaclOut.textContent = ttl || "# No valid descriptors";
+      structureOut.textContent = JSON.stringify(
+        descriptors.map((d) => ({ name: d.name, path: d.path, datatype: d.datatype || null, isList: d.isList })),
+        null,
+        2,
+      );
+      refreshPreview(descriptors);
+      showFeedback(builderFeedback, "SHACL and preview updated.", true);
+    });
+
+    addBlockRow({ name: "title", path: "dct:title", datatype: "xsd:string", example: "Sample title" });
+    addBlockRow({
+      name: "spatial.bbox",
+      path: "dct:spatial dcat:bbox",
+      datatype: "geosparql:wktLiteral",
+      example: "POLYGON((...))",
+    });
+    generateBtn.click();
+  </script>
+</body>
+</html>
